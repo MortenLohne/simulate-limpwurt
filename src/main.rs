@@ -1,9 +1,11 @@
 use std::{fmt, ops::RangeInclusive};
 
 use rand::Rng;
+use rayon::prelude::*;
 use strum::Display;
 
 #[derive(Display, PartialEq, Eq)]
+#[allow(dead_code)]
 enum WorldState {
     Limp2024,
     Limp2025,
@@ -13,12 +15,6 @@ enum WorldState {
 const WORLD_STATE: WorldState = WorldState::Limp2026;
 
 fn main() {
-    let n = 100_000;
-    let mut num_successes = 0;
-    let mut num_tasks_received = 0;
-    let mut num_tasks_per_failed_run = vec![];
-    let mut num_tasks_per_successful_run = vec![];
-
     let start = match WORLD_STATE {
         WorldState::Limp2024 => SimulationStartPoint {
             slayer_level: 55,
@@ -42,9 +38,19 @@ fn main() {
             task_state: TaskState::Active((Monster::Monkeys, SlayerMaster::Turael, 20)),
         },
     };
+    let n = 1_000_000;
 
-    for _ in 0..n {
-        let (tasks_received, success) = simulate_limpwurt(start.clone());
+    let results: Vec<_> = (0..n)
+        .into_par_iter()
+        .map(|_| simulate_limpwurt(start.clone()))
+        .collect();
+
+    let mut num_successes = 0;
+    let mut num_tasks_received = 0;
+    let mut num_tasks_per_failed_run = vec![];
+    let mut num_tasks_per_successful_run = vec![];
+
+    for (tasks_received, success) in results {
         num_tasks_received += tasks_received;
         if success {
             num_successes += 1;
@@ -140,6 +146,7 @@ fn simulate_limpwurt(start: SimulationStartPoint) -> (i32, bool) {
 }
 
 #[derive(Display, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 enum SlayerMaster {
     Turael,
     Vannaka,
@@ -1232,7 +1239,9 @@ enum Quest {
     HorrorFromTheDeep,
     HotStuff,
     LostCity,
+    #[allow(clippy::enum_variant_names)]
     LegendsQuest,
+    #[allow(clippy::enum_variant_names)]
     OlafsQuest,
     PerilousMoons,
     PriestInPeril,
