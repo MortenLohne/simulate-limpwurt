@@ -57,12 +57,22 @@ fn main() {
 
     println!("New assignment: {}", slayer_state.task_state,);
 
-    for _ in 0..100 {
-        simulate_limpwurt();
+    let n = 10_000;
+    let mut num_successes = 0;
+    for _ in 0..n {
+        let (_tasks_received, success) = simulate_limpwurt();
+        if success {
+            num_successes += 1;
+        }
     }
+    println!(
+        "Number of successes: {}, {:.2}%",
+        num_successes,
+        100.0 * num_successes as f32 / n as f32
+    );
 }
 
-fn simulate_limpwurt() -> bool {
+fn simulate_limpwurt() -> (i32, bool) {
     let limpwurt = PlayerState {
         slayer_level: 75,
         quests_done: vec![Quest::LostCity],
@@ -80,13 +90,9 @@ fn simulate_limpwurt() -> bool {
     loop {
         tasks_received += 1;
         if slayer_state.points >= 500 {
-            println!(
-                "Limpwurt has reached 500 points after {} tasks, ending simulation.",
-                tasks_received
-            );
-            return true;
+            return (tasks_received, true);
         }
-        let TaskState::Active((monster, last_master, amount)) = slayer_state.task_state else {
+        let TaskState::Active((monster, _, _)) = slayer_state.task_state else {
             panic!("Expected an active task");
         };
 
@@ -115,8 +121,7 @@ fn simulate_limpwurt() -> bool {
                 slayer_state.new_assignment(&mut rng, slayer_master, &limpwurt);
                 continue;
             } else {
-                println!("Limpwurt cannot afford to skip the task");
-                return false;
+                return (tasks_received, false);
             }
         }
         // Otherwise, we Turael skip
@@ -193,7 +198,7 @@ impl SlayerState {
         let possible_tasks: Vec<(u32, Assignment)> = master
             .assignments()
             .iter()
-            .filter(|assignment| player_state.can_receive_assignment(*assignment))
+            .filter(|assignment| player_state.can_receive_assignment(assignment))
             .fold(vec![], |mut acc, assignment| {
                 acc.push((
                     acc.last().map(|(weight, _)| *weight).unwrap_or(0) + assignment.weight,
