@@ -25,14 +25,14 @@ fn main() {
         },
         WorldState::Limp2025 => SimulationStartPoint {
             slayer_level: 75,
-            quests_done: vec![],
+            quests_done: vec![Quest::LostCity, Quest::PorcineOfInterest],
             task_streak: 0,
             points: 100,
             task_state: TaskState::Active((Monster::Monkeys, SlayerMaster::Turael, 20)),
         },
         WorldState::Limp2026 => SimulationStartPoint {
             slayer_level: 75,
-            quests_done: vec![],
+            quests_done: vec![Quest::LostCity, Quest::PorcineOfInterest],
             task_streak: 0,
             points: 100,
             task_state: TaskState::Active((Monster::Monkeys, SlayerMaster::Turael, 20)),
@@ -114,7 +114,7 @@ fn simulate_limpwurt(start: SimulationStartPoint) -> (i32, bool) {
             let next_slayer_master = if (slayer_state.task_streak + 1).is_multiple_of(10) {
                 SlayerMaster::Vannaka
             } else {
-                SlayerMaster::Turael
+                SlayerMaster::Spria
             };
             slayer_state.new_assignment(&mut rng, next_slayer_master, &limpwurt);
             continue;
@@ -134,7 +134,7 @@ fn simulate_limpwurt(start: SimulationStartPoint) -> (i32, bool) {
         if !can_be_turael_skipped {
             if slayer_state.points >= 30 {
                 slayer_state.point_skip();
-                slayer_state.new_assignment(&mut rng, SlayerMaster::Turael, &limpwurt);
+                slayer_state.new_assignment(&mut rng, SlayerMaster::Spria, &limpwurt);
                 continue;
             } else {
                 return (tasks_received, false);
@@ -149,6 +149,7 @@ fn simulate_limpwurt(start: SimulationStartPoint) -> (i32, bool) {
 #[allow(dead_code)]
 enum SlayerMaster {
     Turael,
+    Spria,
     Vannaka,
     Chaeldar,
 }
@@ -157,6 +158,7 @@ impl SlayerMaster {
     pub fn assignments(&self) -> &[Assignment] {
         match self {
             SlayerMaster::Turael => TURAEL_ASSIGNMENTS,
+            SlayerMaster::Spria => SPRIA_ASSIGNMENTS,
             SlayerMaster::Vannaka => VANNAKA_ASSIGNMENTS,
             SlayerMaster::Chaeldar => CHAELDAR_ASSIGNMENTS,
         }
@@ -165,6 +167,7 @@ impl SlayerMaster {
     pub fn slayer_points(&self) -> u32 {
         match self {
             SlayerMaster::Turael => 0,
+            SlayerMaster::Spria => 0,
             SlayerMaster::Vannaka => match WORLD_STATE {
                 WorldState::Limp2024 => 4,
                 WorldState::Limp2025 => 4,
@@ -425,6 +428,159 @@ const TURAEL_ASSIGNMENTS: &[Assignment] = &[
         amount: 15..=30,
         quest_requirement: None,
         weight: 7,
+    },
+    Assignment {
+        monster: Monster::Spiders,
+        amount: 15..=30,
+        quest_requirement: None,
+        weight: 6,
+    },
+    Assignment {
+        monster: Monster::Wolves,
+        amount: 15..=30,
+        quest_requirement: None,
+        weight: 7,
+    },
+    Assignment {
+        monster: Monster::Zombies,
+        amount: 15..=30,
+        quest_requirement: None,
+        weight: 7,
+    },
+];
+
+const SPRIA_ASSIGNMENTS: &[Assignment] = &[
+    Assignment {
+        monster: Monster::Banshees,
+        amount: 15..=30,
+        quest_requirement: Some(Quest::PriestInPeril),
+        weight: 8,
+    },
+    Assignment {
+        monster: Monster::Bats,
+        amount: 15..=30,
+        quest_requirement: None,
+        weight: 7,
+    },
+    Assignment {
+        monster: Monster::Bears,
+        amount: 10..=20,
+        quest_requirement: None,
+        weight: 7,
+    },
+    Assignment {
+        monster: Monster::Birds,
+        amount: 15..=30,
+        quest_requirement: None,
+        weight: 6,
+    },
+    Assignment {
+        monster: Monster::CaveBugs,
+        amount: 10..=30,
+        quest_requirement: None,
+        weight: 8,
+    },
+    Assignment {
+        monster: Monster::CaveCrawlers,
+        amount: 15..=30,
+        quest_requirement: None,
+        weight: 8,
+    },
+    Assignment {
+        monster: Monster::CaveSlimes,
+        amount: 10..=20,
+        quest_requirement: None,
+        weight: 8,
+    },
+    Assignment {
+        monster: Monster::Cows,
+        amount: 15..=30,
+        quest_requirement: None,
+        weight: 8,
+    },
+    Assignment {
+        monster: Monster::CrawlingHands,
+        amount: 15..=30,
+        quest_requirement: Some(Quest::PriestInPeril),
+        weight: 8,
+    },
+    Assignment {
+        monster: Monster::Dogs,
+        amount: 15..=30,
+        quest_requirement: None,
+        weight: 7,
+    },
+    Assignment {
+        monster: Monster::Dwarves,
+        amount: 10..=25,
+        quest_requirement: None,
+        weight: 7,
+    },
+    Assignment {
+        monster: Monster::Ghosts,
+        amount: 15..=30,
+        quest_requirement: None,
+        weight: 7,
+    },
+    Assignment {
+        monster: Monster::Goblins,
+        amount: 15..=30,
+        quest_requirement: None,
+        weight: 7,
+    },
+    Assignment {
+        monster: Monster::Icefiends,
+        amount: 15..=20,
+        quest_requirement: None,
+        weight: 8,
+    },
+    Assignment {
+        monster: Monster::Kalphite,
+        amount: 15..=30,
+        quest_requirement: None,
+        weight: 6,
+    },
+    Assignment {
+        monster: Monster::Lizards,
+        amount: 15..=30,
+        quest_requirement: None,
+        weight: 8,
+    },
+    Assignment {
+        monster: Monster::Minotaurs,
+        amount: 10..=20,
+        quest_requirement: None,
+        weight: 7,
+    },
+    Assignment {
+        monster: Monster::Monkeys,
+        amount: 15..=30,
+        quest_requirement: None,
+        weight: 6,
+    },
+    Assignment {
+        monster: Monster::Rats,
+        amount: 15..=30,
+        quest_requirement: None,
+        weight: 7,
+    },
+    Assignment {
+        monster: Monster::Scorpions,
+        amount: 15..=30,
+        quest_requirement: None,
+        weight: 7,
+    },
+    Assignment {
+        monster: Monster::Skeletons,
+        amount: 15..=30,
+        quest_requirement: None,
+        weight: 7,
+    },
+    Assignment {
+        monster: Monster::Sourhogs,
+        amount: 15..=25,
+        quest_requirement: Some(Quest::PorcineOfInterest),
+        weight: 6,
     },
     Assignment {
         monster: Monster::Spiders,
@@ -964,7 +1120,7 @@ struct Assignment {
     weight: u32,
 }
 
-#[derive(Display, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Display, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Monster {
     AberrantSpectres,
     AbyssalDemons,
@@ -1036,6 +1192,7 @@ enum Monster {
     ShadowWarriors,
     SkeletalWyverns,
     Skeletons,
+    Sourhogs,
     Spiders,
     SpiritualCreatures,
     TerrorDogs,
@@ -1124,6 +1281,7 @@ impl Monster {
             ShadowWarriors => false,
             SkeletalWyverns => WORLD_STATE != WorldState::Limp2024,
             Skeletons => true,
+            Sourhogs => true,
             Spiders => true,
             SpiritualCreatures => WORLD_STATE != WorldState::Limp2024,
             TerrorDogs => false,
@@ -1210,6 +1368,7 @@ impl Monster {
             Monster::ShadowWarriors => 0,
             Monster::SkeletalWyverns => 72,
             Monster::Skeletons => 0,
+            Monster::Sourhogs => 1,
             Monster::Spiders => 0,
             Monster::SpiritualCreatures => 63,
             Monster::TerrorDogs => 40,
@@ -1244,6 +1403,7 @@ enum Quest {
     #[allow(clippy::enum_variant_names)]
     OlafsQuest,
     PerilousMoons,
+    PorcineOfInterest,
     PriestInPeril,
     Regicide,
     ReptileGotRipped,
@@ -1310,7 +1470,7 @@ fn all_monster_are_assigned_test() {
     let mut frequency: BTreeMap<Monster, u32> = BTreeMap::new();
     let player = PlayerState {
         slayer_level: 75,
-        quests_done: vec![Quest::LostCity],
+        quests_done: vec![Quest::LostCity, Quest::PorcineOfInterest],
     };
     let mut slayer_state = SlayerState {
         points: 0,
@@ -1341,7 +1501,9 @@ fn all_monster_are_assigned_test() {
             .assignments()
             .iter()
             .filter(|a| { player.can_receive_assignment(a) })
-            .count()
+            .count(),
+        "{:?}",
+        frequency
     );
 
     for (monster, count) in frequency {
