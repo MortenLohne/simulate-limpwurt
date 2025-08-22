@@ -27,14 +27,14 @@ fn main() {
             slayer_level: 75,
             quests_done: vec![Quest::LostCity, Quest::PorcineOfInterest],
             task_streak: 0,
-            points: 100,
+            points: 120,
             task_state: TaskState::Active((Monster::Monkeys, SlayerMaster::Turael, 20)),
         },
         WorldState::Limp2026 => SimulationStartPoint {
             slayer_level: 75,
             quests_done: vec![Quest::LostCity, Quest::PorcineOfInterest],
             task_streak: 0,
-            points: 100,
+            points: 120,
             task_state: TaskState::Active((Monster::Monkeys, SlayerMaster::Turael, 20)),
         },
     };
@@ -61,8 +61,9 @@ fn main() {
     }
     num_tasks_per_failed_run.sort();
     num_tasks_per_successful_run.sort();
-    let median_successful_tasks =
-        num_tasks_per_successful_run[num_tasks_per_successful_run.len() / 2];
+    let median_successful_tasks = num_tasks_per_successful_run
+        .get(num_tasks_per_successful_run.len() / 2)
+        .unwrap_or(&0);
     let median_failed_tasks = num_tasks_per_failed_run[num_tasks_per_failed_run.len() / 2];
     println!(
         "Number of successes: {}, {:.2}%, {:.1} tasks received on average, {} tasks median on success, {} tasks median on failure",
