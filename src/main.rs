@@ -69,7 +69,7 @@ impl SlayerMaster {
         match self {
             SlayerMaster::Turael => TURAEL_ASSIGNMENTS,
             SlayerMaster::Vannaka => VANNAKA_ASSIGNMENTS,
-            SlayerMaster::Chaeldar => unimplemented!(),
+            SlayerMaster::Chaeldar => CHAELDAR_ASSIGNMENTS,
         }
     }
 }
@@ -561,6 +561,243 @@ const VANNAKA_ASSIGNMENTS: &[Assignment] = &[
     },
 ];
 
+const CHAELDAR_ASSIGNMENTS: &[Assignment] = &[
+    Assignment {
+        monster: Monster::AberrantSpectres,
+        amount: 70..=130,
+        quest_requirement: Some(Quest::PriestInPeril),
+        weight: 8,
+    },
+    Assignment {
+        monster: Monster::AbyssalDemons,
+        amount: 70..=130,
+        quest_requirement: Some(Quest::PriestInPeril),
+        weight: 12,
+    },
+    Assignment {
+        monster: Monster::Aviansie,
+        amount: 70..=130,
+        quest_requirement: Some(Quest::WatchTheBirdie),
+        weight: 9,
+    },
+    Assignment {
+        monster: Monster::Basilisks,
+        amount: 70..=130,
+        quest_requirement: None,
+        weight: 7,
+    },
+    Assignment {
+        monster: Monster::BlackDemons,
+        amount: 70..=130,
+        quest_requirement: None,
+        weight: 10,
+    },
+    Assignment {
+        monster: Monster::Bloodveld,
+        amount: 70..=130,
+        quest_requirement: Some(Quest::PriestInPeril),
+        weight: 8,
+    },
+    Assignment {
+        monster: Monster::BlueDragons,
+        amount: 70..=130,
+        quest_requirement: Some(Quest::DragonSlayer),
+        weight: 8,
+    },
+    Assignment {
+        monster: Monster::BrineRats,
+        amount: 70..=130,
+        quest_requirement: Some(Quest::OlafsQuest),
+        weight: 7,
+    },
+    Assignment {
+        monster: Monster::CaveHorrors,
+        amount: 70..=130,
+        quest_requirement: Some(Quest::CabinFever),
+        weight: 10,
+    },
+    Assignment {
+        monster: Monster::CaveKraken,
+        amount: 30..=50,
+        quest_requirement: None,
+        weight: 12,
+    },
+    Assignment {
+        monster: Monster::Crabs,
+        amount: 70..=130,
+        quest_requirement: None,
+        weight: 8,
+    },
+    Assignment {
+        monster: Monster::CustodianStalker,
+        amount: 70..=130,
+        quest_requirement: Some(Quest::ShadowsOfCustodia),
+        weight: 11,
+    },
+    Assignment {
+        monster: Monster::Dagannoth,
+        amount: 70..=130,
+        quest_requirement: Some(Quest::HorrorFromTheDeep),
+        weight: 11,
+    },
+    Assignment {
+        monster: Monster::DustDevils,
+        amount: 70..=130,
+        quest_requirement: Some(Quest::DesertTreasure),
+        weight: 9,
+    },
+    Assignment {
+        monster: Monster::Elves,
+        amount: 70..=130,
+        quest_requirement: Some(Quest::Regicide),
+        weight: 8,
+    },
+    Assignment {
+        monster: Monster::FeverSpiders,
+        amount: 70..=130,
+        quest_requirement: Some(Quest::RumDeal),
+        weight: 7,
+    },
+    Assignment {
+        monster: Monster::FireGiants,
+        amount: 70..=130,
+        quest_requirement: None,
+        weight: 12,
+    },
+    Assignment {
+        monster: Monster::FossilIslandWyverns,
+        amount: 10..=20,
+        quest_requirement: Some(Quest::ElementalWorkshop),
+        weight: 7,
+    },
+    Assignment {
+        monster: Monster::Gargoyles,
+        amount: 70..=130,
+        quest_requirement: Some(Quest::PriestInPeril),
+        weight: 11,
+    },
+    Assignment {
+        monster: Monster::GreaterDemons,
+        amount: 70..=130,
+        quest_requirement: None,
+        weight: 9,
+    },
+    Assignment {
+        monster: Monster::Hellhounds,
+        amount: 70..=130,
+        quest_requirement: None,
+        weight: 9,
+    },
+    Assignment {
+        monster: Monster::Jellies,
+        amount: 70..=130,
+        quest_requirement: None,
+        weight: 10,
+    },
+    Assignment {
+        monster: Monster::JungleHorrors,
+        amount: 70..=130,
+        quest_requirement: Some(Quest::CabinFever),
+        weight: 10,
+    },
+    Assignment {
+        monster: Monster::Kalphite,
+        amount: 70..=130,
+        quest_requirement: None,
+        weight: 11,
+    },
+    Assignment {
+        monster: Monster::Kurask,
+        amount: 70..=130,
+        quest_requirement: None,
+        weight: 12,
+    },
+    Assignment {
+        monster: Monster::LesserDemons,
+        amount: 70..=130,
+        quest_requirement: None,
+        weight: 9,
+    },
+    Assignment {
+        monster: Monster::LesserNagua,
+        amount: 50..=100,
+        quest_requirement: Some(Quest::PerilousMoons),
+        weight: 4,
+    },
+    Assignment {
+        monster: Monster::Lizardmen,
+        amount: 50..=90,
+        quest_requirement: Some(Quest::ReptileGotRipped),
+        weight: 8,
+    },
+    Assignment {
+        monster: Monster::MutatedZygomites,
+        amount: 8..=15,
+        quest_requirement: Some(Quest::LostCity),
+        weight: 7,
+    },
+    Assignment {
+        monster: Monster::Nechryael,
+        amount: 70..=130,
+        quest_requirement: None,
+        weight: 12,
+    },
+    Assignment {
+        monster: Monster::ShadowWarriors,
+        amount: 70..=130,
+        quest_requirement: Some(Quest::LegendsQuest),
+        weight: 8,
+    },
+    Assignment {
+        monster: Monster::SkeletalWyverns,
+        amount: 10..=20,
+        quest_requirement: Some(Quest::PriestInPeril),
+        weight: 7,
+    },
+    Assignment {
+        monster: Monster::SpiritualCreatures,
+        amount: 70..=130,
+        quest_requirement: Some(Quest::DeathPlateau),
+        weight: 12,
+    },
+    Assignment {
+        monster: Monster::Trolls,
+        amount: 70..=130,
+        quest_requirement: None,
+        weight: 11,
+    },
+    Assignment {
+        monster: Monster::Turoth,
+        amount: 70..=130,
+        quest_requirement: None,
+        weight: 10,
+    },
+    Assignment {
+        monster: Monster::TzHaar,
+        amount: 90..=150,
+        quest_requirement: Some(Quest::HotStuff),
+        weight: 8,
+    },
+    Assignment {
+        monster: Monster::Vampyres,
+        amount: 80..=100,
+        quest_requirement: Some(Quest::ActualVampyreSlayer),
+        weight: 6,
+    },
+    Assignment {
+        monster: Monster::WarpedCreatures,
+        amount: 70..=130,
+        quest_requirement: Some(Quest::WarpedReality),
+        weight: 6,
+    },
+    Assignment {
+        monster: Monster::Wyrms,
+        amount: 60..=100,
+        quest_requirement: None,
+        weight: 6,
+    },
+];
+
 #[derive(Clone, PartialEq, Eq)]
 struct Assignment {
     monster: Monster,
@@ -574,22 +811,27 @@ enum Monster {
     AberrantSpectres,
     AbyssalDemons,
     Ankous,
+    Aviansie,
     Banshees,
     Basilisks,
     Bats,
     Bears,
     Birds,
+    BlackDemons,
     Bloodveld,
     BlueDragons,
     BrineRats,
     CaveBugs,
     CaveCrawlers,
+    CaveHorrors,
+    CaveKraken,
     CaveSlimes,
     Cockatrice,
     Cows,
     Crabs,
     CrawlingHands,
     Crocodiles,
+    CustodianStalker,
     Dagannoth,
     DustDevils,
     Dogs,
@@ -597,10 +839,12 @@ enum Monster {
     Elves,
     FeverSpiders,
     FireGiants,
+    FossilIslandWyverns,
     Gargoyles,
     Ghosts,
     Ghouls,
     Goblins,
+    GreaterDemons,
     HarpieBugSwarms,
     Hellhounds,
     HillGiants,
@@ -614,12 +858,15 @@ enum Monster {
     Kalphite,
     Kurask,
     LesserDemons,
+    LesserNagua,
+    Lizardmen,
     Lizards,
     Minotaurs,
     Mogres,
     Molanisks,
     Monkeys,
     MossGiants,
+    MutatedZygomites,
     Nechryael,
     Ogres,
     OtherwordlyBeings,
@@ -629,15 +876,19 @@ enum Monster {
     SeaSnakes,
     Shades,
     ShadowWarriors,
+    SkeletalWyverns,
     Skeletons,
     Spiders,
     SpiritualCreatures,
     TerrorDogs,
     Trolls,
     Turoth,
+    TzHaar,
     Vampyres,
+    WarpedCreatures,
     Werewolves,
     Wolves,
+    Wyrms,
     Zombies,
 }
 
@@ -647,22 +898,27 @@ impl Monster {
             Monster::AberrantSpectres => 60,
             Monster::AbyssalDemons => 85,
             Monster::Ankous => 0,
+            Monster::Aviansie => 0,
             Monster::Banshees => 15,
             Monster::Basilisks => 40,
             Monster::Bats => 0,
             Monster::Bears => 0,
             Monster::Birds => 0,
+            Monster::BlackDemons => 0,
             Monster::Bloodveld => 50,
             Monster::BlueDragons => 0,
             Monster::BrineRats => 47,
             Monster::CaveBugs => 7,
             Monster::CaveCrawlers => 10,
+            Monster::CaveHorrors => 58,
+            Monster::CaveKraken => 87,
             Monster::CaveSlimes => 17,
             Monster::Cockatrice => 25,
             Monster::Cows => 0,
             Monster::Crabs => 0,
             Monster::CrawlingHands => 5,
             Monster::Crocodiles => 0,
+            Monster::CustodianStalker => 54,
             Monster::Dagannoth => 0,
             Monster::DustDevils => 65,
             Monster::Dogs => 0,
@@ -670,10 +926,12 @@ impl Monster {
             Monster::Elves => 0,
             Monster::FeverSpiders => 42,
             Monster::FireGiants => 0,
+            Monster::FossilIslandWyverns => 66,
             Monster::Gargoyles => 75,
             Monster::Ghosts => 0,
             Monster::Ghouls => 0,
             Monster::Goblins => 0,
+            Monster::GreaterDemons => 0,
             Monster::HarpieBugSwarms => 33,
             Monster::Hellhounds => 0,
             Monster::HillGiants => 0,
@@ -687,12 +945,15 @@ impl Monster {
             Monster::Kalphite => 0,
             Monster::Kurask => 70,
             Monster::LesserDemons => 0,
+            Monster::LesserNagua => 48,
+            Monster::Lizardmen => 0,
             Monster::Lizards => 22,
             Monster::Minotaurs => 0,
             Monster::Mogres => 32,
             Monster::Molanisks => 39,
             Monster::Monkeys => 0,
             Monster::MossGiants => 0,
+            Monster::MutatedZygomites => 57,
             Monster::Nechryael => 80,
             Monster::Ogres => 0,
             Monster::OtherwordlyBeings => 0,
@@ -702,15 +963,19 @@ impl Monster {
             Monster::SeaSnakes => 40,
             Monster::Shades => 0,
             Monster::ShadowWarriors => 0,
+            Monster::SkeletalWyverns => 72,
             Monster::Skeletons => 0,
             Monster::Spiders => 0,
             Monster::SpiritualCreatures => 63,
             Monster::TerrorDogs => 40,
             Monster::Trolls => 0,
             Monster::Turoth => 55,
+            Monster::TzHaar => 0,
             Monster::Vampyres => 0,
+            Monster::WarpedCreatures => 0,
             Monster::Werewolves => 0,
             Monster::Wolves => 0,
+            Monster::Wyrms => 62,
             Monster::Zombies => 0,
         }
     }
@@ -718,19 +983,76 @@ impl Monster {
 
 #[derive(Display, Clone, Copy, PartialEq, Eq)]
 enum Quest {
+    ActualVampyreSlayer,
     CabinFever,
+    DeathPlateau,
     DeathToTheDorgeshuun,
     DesertTreasure,
     DragonSlayer,
+    ElementalWorkshop,
+    HauntedMine,
     HorrorFromTheDeep,
+    HotStuff,
+    LostCity,
     LegendsQuest,
     OlafsQuest,
+    PerilousMoons,
     PriestInPeril,
     Regicide,
+    ReptileGotRipped,
     RumDeal,
+    ShadowsOfCustodia,
     SkippyAndTheMogres,
     RoyalTrouble,
-    HauntedMine,
-    DeathPlateau,
-    LostCity,
+    WarpedReality,
+    WatchTheBirdie,
+}
+
+#[test]
+fn turael_total_weight_test() {
+    let total_weight: u32 = TURAEL_ASSIGNMENTS.iter().map(|a| a.weight).sum();
+    assert_eq!(total_weight, 172);
+
+    let player_state = PlayerState {
+        slayer_level: 75,
+        quests_done: vec![Quest::LostCity],
+    };
+    let player_total_weight = total_weight_prop(&player_state, SlayerMaster::Turael);
+    assert_eq!(player_total_weight, 156);
+}
+
+#[test]
+fn vannaka_total_weight_test() {
+    let total_weight: u32 = VANNAKA_ASSIGNMENTS.iter().map(|a| a.weight).sum();
+    assert_eq!(total_weight, 322);
+
+    let player_state = PlayerState {
+        slayer_level: 75,
+        quests_done: vec![Quest::LostCity],
+    };
+    let player_total_weight = total_weight_prop(&player_state, SlayerMaster::Vannaka);
+    assert_eq!(player_total_weight, 169);
+}
+
+#[test]
+fn chaeldar_total_weight_test() {
+    let total_weight: u32 = CHAELDAR_ASSIGNMENTS.iter().map(|a| a.weight).sum();
+    assert_eq!(total_weight, 350);
+
+    let player_state = PlayerState {
+        slayer_level: 75,
+        quests_done: vec![Quest::LostCity],
+    };
+    let player_total_weight = total_weight_prop(&player_state, SlayerMaster::Chaeldar);
+    assert_eq!(player_total_weight, 131);
+}
+
+#[cfg(test)]
+fn total_weight_prop(player_state: &PlayerState, master: SlayerMaster) -> u32 {
+    master
+        .assignments()
+        .iter()
+        .filter(|assignment| player_state.can_receive_assignment(assignment))
+        .map(|assignment| assignment.weight)
+        .sum()
 }
