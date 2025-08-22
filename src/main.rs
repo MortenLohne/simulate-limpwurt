@@ -1,4 +1,4 @@
-use std::{fmt, ops::RangeInclusive};
+use std::{fmt, ops::RangeInclusive, time};
 
 use rand::Rng;
 use rayon::prelude::*;
@@ -38,6 +38,7 @@ fn main() {
             task_state: TaskState::Active((Monster::Monkeys, SlayerMaster::Turael, 20)),
         },
     };
+    let start_time = time::Instant::now();
     let n = 1_000_000;
 
     let results: Vec<_> = (0..n)
@@ -46,32 +47,50 @@ fn main() {
         .collect();
 
     let mut num_successes = 0;
-    let mut num_tasks_received = 0;
+    let mut num_tasks_received: u64 = 0;
     let mut num_tasks_per_failed_run = vec![];
     let mut num_tasks_per_successful_run = vec![];
+    let mut min_points_per_successful_run = vec![];
 
-    for (tasks_received, success) in results {
-        num_tasks_received += tasks_received;
+    let mut max_points_locked = 0;
+
+    for (tasks_received, min_points, max_points, success) in results {
+        num_tasks_received += tasks_received as u64;
         if success {
             num_successes += 1;
             num_tasks_per_successful_run.push(tasks_received);
+            min_points_per_successful_run.push(min_points);
         } else {
+            max_points_locked = max_points_locked.max(max_points);
             num_tasks_per_failed_run.push(tasks_received);
         }
     }
     num_tasks_per_failed_run.sort();
     num_tasks_per_successful_run.sort();
+    min_points_per_successful_run.sort();
+
     let median_successful_tasks = num_tasks_per_successful_run
         .get(num_tasks_per_successful_run.len() / 2)
         .unwrap_or(&0);
-    let median_failed_tasks = num_tasks_per_failed_run[num_tasks_per_failed_run.len() / 2];
+    let median_failed_tasks = num_tasks_per_failed_run
+        .get(num_tasks_per_failed_run.len() / 2)
+        .unwrap_or(&0);
+    let median_min_points = min_points_per_successful_run
+        .get(min_points_per_successful_run.len() / 2)
+        .unwrap_or(&0);
+
+    println!("Finished in {:.1}s", start_time.elapsed().as_secs_f32());
     println!(
-        "Number of successes: {}, {:.2}%, {:.1} tasks received on average, {} tasks median on success, {} tasks median on failure",
+        "Number of successes: {}, {:.3}%, {:.1} tasks received on average, {} tasks median on success, {} tasks median on failure",
         num_successes,
         100.0 * num_successes as f32 / n as f32,
         num_tasks_received as f32 / n as f32,
         median_successful_tasks,
         median_failed_tasks
+    );
+    println!(
+        "Max points while eventually getting slayer-locked: {}, median min points on success: {}",
+        max_points_locked, median_min_points
     );
 }
 
@@ -84,8 +103,8 @@ struct SimulationStartPoint {
     task_state: TaskState,
 }
 
-/// Returns the number of tasks received, and whether he escaped (i.e. got lots of points)
-fn simulate_limpwurt(start: SimulationStartPoint) -> (i32, bool) {
+/// Returns the number of tasks received, the minimum/maximum points reached, and whether he escaped (i.e. got lots of points)
+fn simulate_limpwurt(start: SimulationStartPoint) -> (i32, u32, u32, bool) {
     let limpwurt = PlayerState {
         slayer_level: start.slayer_level,
         quests_done: start.quests_done,
@@ -99,11 +118,15 @@ fn simulate_limpwurt(start: SimulationStartPoint) -> (i32, bool) {
 
     let mut rng = rand::rng();
     let mut tasks_received = 0;
+    let mut min_points = start.points;
+    let mut max_points = start.points;
 
     loop {
         tasks_received += 1;
+        min_points = min_points.min(slayer_state.points);
+        max_points = max_points.max(slayer_state.points);
         if slayer_state.points >= 1000 {
-            return (tasks_received, true);
+            return (tasks_received, min_points, max_points, true);
         }
         let TaskState::Active((monster, _, _)) = slayer_state.task_state else {
             panic!("Expected an active task");
@@ -112,11 +135,13 @@ fn simulate_limpwurt(start: SimulationStartPoint) -> (i32, bool) {
         // Simply complete the task if possible
         if monster.can_limpwurt_kill() {
             slayer_state.complete_assignment();
-            let next_slayer_master = if (slayer_state.task_streak + 1).is_multiple_of(10) {
-                SlayerMaster::Vannaka
-            } else {
-                SlayerMaster::Spria
-            };
+            // Do the 10th, 11th, 12th, 13th and 14th task at Vannaka
+            let next_slayer_master =
+                if slayer_state.task_streak >= 4 && (slayer_state.task_streak + 1) % 10 <= 4 {
+                    SlayerMaster::Vannaka
+                } else {
+                    SlayerMaster::Spria
+                };
             slayer_state.new_assignment(&mut rng, next_slayer_master, &limpwurt);
             continue;
         }
@@ -138,7 +163,7 @@ fn simulate_limpwurt(start: SimulationStartPoint) -> (i32, bool) {
                 slayer_state.new_assignment(&mut rng, SlayerMaster::Spria, &limpwurt);
                 continue;
             } else {
-                return (tasks_received, false);
+                return (tasks_received, min_points, max_points, false);
             }
         }
         // Otherwise, we Turael skip
@@ -1250,7 +1275,7 @@ impl Monster {
             Dwarves => true,
             Elves => false,
             FeverSpiders => false,
-            FireGiants => false,
+            FireGiants => true,
             FossilIslandWyverns => false,
             Gargoyles => false,
             Ghosts => true,
@@ -1294,7 +1319,7 @@ impl Monster {
             Spiders => true,
             SpiritualCreatures => WORLD_STATE != WorldState::Limp2024,
             TerrorDogs => false,
-            Trolls => WORLD_STATE != WorldState::Limp2024,
+            Trolls => false,
             Turoth => false,
             TzHaar => false,
             Vampyres => false,
