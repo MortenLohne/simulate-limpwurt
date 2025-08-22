@@ -3,8 +3,17 @@ use std::{fmt, ops::RangeInclusive};
 use rand::Rng;
 use strum::Display;
 
+#[derive(Display, PartialEq, Eq)]
+enum WorldState {
+    Limp2024,
+    Limp2025,
+    Limp2026,
+}
+
+const WORLD_STATE: WorldState = WorldState::Limp2024;
+
 fn main() {
-    let n = 100_000;
+    let n = 10_000;
     let mut num_successes = 0;
     for _ in 0..n {
         let (_tasks_received, success) = simulate_limpwurt();
@@ -22,13 +31,21 @@ fn main() {
 /// Returns the number of tasks received, and whether he escaped (i.e. got lots of points)
 fn simulate_limpwurt() -> (i32, bool) {
     let limpwurt = PlayerState {
-        slayer_level: 75,
-        quests_done: vec![Quest::LostCity],
+        slayer_level: match WORLD_STATE {
+            WorldState::Limp2024 => 22,
+            WorldState::Limp2025 => 75,
+            WorldState::Limp2026 => 80,
+        },
+        quests_done: match WORLD_STATE {
+            WorldState::Limp2024 => vec![],
+            WorldState::Limp2025 => vec![Quest::LostCity],
+            WorldState::Limp2026 => vec![Quest::LostCity],
+        },
     };
 
     let mut slayer_state = SlayerState {
         task_streak: 0,
-        points: 100,
+        points: 500,
         task_state: TaskState::Active((Monster::Monkeys, SlayerMaster::Turael, 20)),
     };
 
@@ -44,15 +61,16 @@ fn simulate_limpwurt() -> (i32, bool) {
             panic!("Expected an active task");
         };
 
+        let next_slayer_master = if slayer_state.task_streak >= 5 {
+            SlayerMaster::Vannaka
+        } else {
+            SlayerMaster::Turael
+        };
+
         // Simply complete the task if possible
         if monster.can_limpwurt_kill() {
             slayer_state.complete_assignment();
-            let slayer_master = if slayer_state.task_streak >= 5 {
-                SlayerMaster::Vannaka
-            } else {
-                SlayerMaster::Turael
-            };
-            slayer_state.new_assignment(&mut rng, slayer_master, &limpwurt);
+            slayer_state.new_assignment(&mut rng, next_slayer_master, &limpwurt);
             continue;
         }
         // If Turael assigns the monster, we must point skip
@@ -62,12 +80,7 @@ fn simulate_limpwurt() -> (i32, bool) {
         {
             if slayer_state.points >= 30 {
                 slayer_state.point_skip();
-                let slayer_master = if slayer_state.task_streak >= 5 {
-                    SlayerMaster::Vannaka
-                } else {
-                    SlayerMaster::Turael
-                };
-                slayer_state.new_assignment(&mut rng, slayer_master, &limpwurt);
+                slayer_state.new_assignment(&mut rng, next_slayer_master, &limpwurt);
                 continue;
             } else {
                 return (tasks_received, false);
@@ -986,7 +999,7 @@ impl Monster {
             Bears => true,
             Birds => true,
             BlackDemons => true,
-            Bloodveld => true,
+            Bloodveld => WORLD_STATE != WorldState::Limp2024,
             BlueDragons => false,
             BrineRats => false,
             CaveBugs => true,
@@ -1012,7 +1025,7 @@ impl Monster {
             Ghosts => true,
             Ghouls => false,
             Goblins => true,
-            GreaterDemons => true,
+            GreaterDemons => WORLD_STATE != WorldState::Limp2024,
             HarpieBugSwarms => false,
             Hellhounds => false,
             HillGiants => true,
@@ -1034,22 +1047,22 @@ impl Monster {
             Molanisks => false,
             Monkeys => false,
             MossGiants => true,
-            MutatedZygomites => true,
+            MutatedZygomites => WORLD_STATE != WorldState::Limp2024,
             Nechryael => false,
             Ogres => false,
-            OtherwordlyBeings => true,
-            Pyrefiends => true,
+            OtherwordlyBeings => WORLD_STATE != WorldState::Limp2024,
+            Pyrefiends => WORLD_STATE != WorldState::Limp2024,
             Rats => true,
             Scorpions => true,
             SeaSnakes => false,
             Shades => true,
             ShadowWarriors => false,
-            SkeletalWyverns => true,
+            SkeletalWyverns => WORLD_STATE != WorldState::Limp2024,
             Skeletons => true,
             Spiders => true,
-            SpiritualCreatures => true,
+            SpiritualCreatures => WORLD_STATE != WorldState::Limp2024,
             TerrorDogs => false,
-            Trolls => true,
+            Trolls => WORLD_STATE != WorldState::Limp2024,
             Turoth => false,
             TzHaar => false,
             Vampyres => false,
