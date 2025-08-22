@@ -46,6 +46,7 @@ fn main() {
     );
 
     let mut slayer_state = SlayerState {
+        task_streak: 0,
         points: 0,
         task_state: TaskState::Completed(Monster::Monkeys),
     };
@@ -55,9 +56,75 @@ fn main() {
     slayer_state.new_assignment(&mut rng, SlayerMaster::Turael, &limpwurt);
 
     println!("New assignment: {}", slayer_state.task_state,);
+
+    for _ in 0..100 {
+        simulate_limpwurt();
+    }
 }
 
-#[derive(Display, Clone, PartialEq, Eq)]
+fn simulate_limpwurt() -> bool {
+    let limpwurt = PlayerState {
+        slayer_level: 75,
+        quests_done: vec![Quest::LostCity],
+    };
+
+    let mut slayer_state = SlayerState {
+        task_streak: 0,
+        points: 100,
+        task_state: TaskState::Active((Monster::Monkeys, SlayerMaster::Turael, 20)),
+    };
+
+    let mut rng = rand::rng();
+    let mut tasks_received = 0;
+
+    loop {
+        tasks_received += 1;
+        if slayer_state.points >= 500 {
+            println!(
+                "Limpwurt has reached 500 points after {} tasks, ending simulation.",
+                tasks_received
+            );
+            return true;
+        }
+        let TaskState::Active((monster, last_master, amount)) = slayer_state.task_state else {
+            panic!("Expected an active task");
+        };
+
+        if monster.can_limpwurt_kill() {
+            slayer_state.complete_assignment();
+            let slayer_master = if slayer_state.task_streak >= 5 {
+                SlayerMaster::Vannaka
+            } else {
+                SlayerMaster::Turael
+            };
+            slayer_state.new_assignment(&mut rng, slayer_master, &limpwurt);
+            continue;
+        }
+        // If Turael assigns the monster, we must point skip
+        if TURAEL_ASSIGNMENTS
+            .iter()
+            .any(|assignment| assignment.monster == monster)
+        {
+            if slayer_state.points >= 30 {
+                slayer_state.point_skip();
+                let slayer_master = if slayer_state.task_streak >= 5 {
+                    SlayerMaster::Vannaka
+                } else {
+                    SlayerMaster::Turael
+                };
+                slayer_state.new_assignment(&mut rng, slayer_master, &limpwurt);
+                continue;
+            } else {
+                println!("Limpwurt cannot afford to skip the task");
+                return false;
+            }
+        }
+        // Otherwise, we Turael skip
+        slayer_state.new_assignment(&mut rng, SlayerMaster::Turael, &limpwurt);
+    }
+}
+
+#[derive(Display, Clone, Copy, PartialEq, Eq)]
 enum SlayerMaster {
     Turael,
     Vannaka,
@@ -72,18 +139,28 @@ impl SlayerMaster {
             SlayerMaster::Chaeldar => CHAELDAR_ASSIGNMENTS,
         }
     }
+
+    pub fn slayer_points(&self) -> u32 {
+        match self {
+            SlayerMaster::Turael => 0,
+            SlayerMaster::Vannaka => 4,
+            SlayerMaster::Chaeldar => 10,
+        }
+    }
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum TaskState {
-    Active(Assignment),
+    Active((Monster, SlayerMaster, u32)), // (monster, master, amount)
     Completed(Monster),
 }
 
 impl fmt::Display for TaskState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            TaskState::Active(assignment) => write!(f, "Active task: {}", assignment.monster),
+            TaskState::Active((monster, master, _)) => {
+                write!(f, "Active {} task: {}", master, monster)
+            }
             TaskState::Completed(monster) => write!(f, "Completed task: {}", monster),
         }
     }
@@ -91,6 +168,7 @@ impl fmt::Display for TaskState {
 
 struct SlayerState {
     points: u32,
+    task_streak: u32,
     task_state: TaskState,
 }
 
@@ -101,6 +179,17 @@ impl SlayerState {
         master: SlayerMaster,
         player_state: &PlayerState,
     ) {
+        if let TaskState::Active((monster, _, _)) = self.task_state {
+            if master != SlayerMaster::Turael {
+                panic!("Can only Turael-skip at Turael")
+            }
+            if TURAEL_ASSIGNMENTS.iter().any(|assignment| {
+                assignment.monster == monster && player_state.can_receive_assignment(assignment)
+            }) {
+                panic!("Cannot Turael-skip a {} task", monster);
+            }
+        }
+
         let possible_tasks: Vec<(u32, Assignment)> = master
             .assignments()
             .iter()
@@ -123,7 +212,42 @@ impl SlayerState {
             .unwrap()
             .1;
 
-        self.task_state = TaskState::Active(task);
+        let amount = rng.random_range(task.amount);
+
+        self.task_state = TaskState::Active((task.monster, master, amount));
+    }
+
+    pub fn complete_assignment(&mut self) {
+        let TaskState::Active((monster, master, _)) = self.task_state else {
+            panic!("Cannot complete assignment when no task is active");
+        };
+        self.task_streak += 1;
+        if self.task_streak > 5 {
+            let point_multiplier = if self.task_streak.is_multiple_of(1000) {
+                50
+            } else if self.task_streak.is_multiple_of(250) {
+                35
+            } else if self.task_streak.is_multiple_of(100) {
+                25
+            } else if self.task_streak.is_multiple_of(50) {
+                15
+            } else if self.task_streak.is_multiple_of(10) {
+                5
+            } else {
+                1
+            };
+            self.points += master.slayer_points() * point_multiplier;
+        }
+        self.task_state = TaskState::Completed(monster);
+    }
+
+    pub fn point_skip(&mut self) {
+        let TaskState::Active((monster, _, _)) = self.task_state else {
+            panic!("Expected an active task");
+        };
+        self.task_state = TaskState::Completed(monster);
+        assert!(self.points >= 30);
+        self.points -= 30;
     }
 }
 
@@ -806,7 +930,7 @@ struct Assignment {
     weight: u32,
 }
 
-#[derive(Display, Clone, Copy, PartialEq, Eq)]
+#[derive(Display, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Monster {
     AberrantSpectres,
     AbyssalDemons,
@@ -893,6 +1017,93 @@ enum Monster {
 }
 
 impl Monster {
+    fn can_limpwurt_kill(self) -> bool {
+        use Monster::*;
+        match self {
+            AberrantSpectres => false,
+            AbyssalDemons => false,
+            Ankous => true,
+            Aviansie => false,
+            Banshees => false,
+            Basilisks => false,
+            Bats => true,
+            Bears => true,
+            Birds => true,
+            BlackDemons => true,
+            Bloodveld => true,
+            BlueDragons => false,
+            BrineRats => false,
+            CaveBugs => true,
+            CaveCrawlers => true,
+            CaveHorrors => false,
+            CaveKraken => false,
+            CaveSlimes => true,
+            Cockatrice => false,
+            Cows => true,
+            Crabs => false,
+            CrawlingHands => false,
+            Crocodiles => true,
+            CustodianStalker => false,
+            Dagannoth => false,
+            DustDevils => false,
+            Dogs => true,
+            Dwarves => true,
+            Elves => false,
+            FeverSpiders => false,
+            FireGiants => false,
+            FossilIslandWyverns => false,
+            Gargoyles => false,
+            Ghosts => true,
+            Ghouls => false,
+            Goblins => true,
+            GreaterDemons => true,
+            HarpieBugSwarms => false,
+            Hellhounds => false,
+            HillGiants => true,
+            Hobgoblins => true,
+            Icefiends => true,
+            IceGiants => true,
+            IceWarriors => true,
+            InfernalMages => false,
+            Jellies => false,
+            JungleHorrors => false,
+            Kalphite => true,
+            Kurask => false,
+            LesserDemons => false,
+            LesserNagua => false,
+            Lizardmen => false,
+            Lizards => true,
+            Minotaurs => true,
+            Mogres => false,
+            Molanisks => false,
+            Monkeys => false,
+            MossGiants => true,
+            MutatedZygomites => true,
+            Nechryael => false,
+            Ogres => false,
+            OtherwordlyBeings => true,
+            Pyrefiends => true,
+            Rats => true,
+            Scorpions => true,
+            SeaSnakes => false,
+            Shades => true,
+            ShadowWarriors => false,
+            SkeletalWyverns => true,
+            Skeletons => true,
+            Spiders => true,
+            SpiritualCreatures => true,
+            TerrorDogs => false,
+            Trolls => true,
+            Turoth => false,
+            TzHaar => false,
+            Vampyres => false,
+            WarpedCreatures => false,
+            Werewolves => false,
+            Wolves => true,
+            Wyrms => false,
+            Zombies => true,
+        }
+    }
     fn slayer_req(&self) -> u8 {
         match self {
             Monster::AberrantSpectres => 60,
@@ -1055,4 +1266,49 @@ fn total_weight_prop(player_state: &PlayerState, master: SlayerMaster) -> u32 {
         .filter(|assignment| player_state.can_receive_assignment(assignment))
         .map(|assignment| assignment.weight)
         .sum()
+}
+
+#[test]
+fn all_monster_are_assigned_test() {
+    use std::collections::BTreeMap;
+    let mut frequency: BTreeMap<Monster, u32> = BTreeMap::new();
+    let player = PlayerState {
+        slayer_level: 75,
+        quests_done: vec![Quest::LostCity],
+    };
+    let mut slayer_state = SlayerState {
+        points: 0,
+        task_streak: 0,
+        task_state: TaskState::Completed(Monster::Monkeys),
+    };
+
+    let mut rng = rand::rng();
+
+    const N: u32 = 100_000;
+    let slayer_master = SlayerMaster::Turael;
+
+    for _ in 0..N {
+        slayer_state.new_assignment(&mut rng, slayer_master, &player);
+
+        let TaskState::Active((monster, _, _)) = slayer_state.task_state else {
+            panic!();
+        };
+        *frequency.entry(monster).or_insert(0) += 1;
+        slayer_state.complete_assignment();
+    }
+
+    assert_eq!(slayer_state.task_streak, N);
+
+    assert_eq!(
+        frequency.len(),
+        slayer_master
+            .assignments()
+            .iter()
+            .filter(|a| { player.can_receive_assignment(a) })
+            .count()
+    );
+
+    for (monster, count) in frequency {
+        println!("{}: {:.2}%", monster, 100.0 * count as f32 / N as f32);
+    }
 }
