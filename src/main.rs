@@ -10,43 +10,84 @@ enum WorldState {
     Limp2026,
 }
 
-const WORLD_STATE: WorldState = WorldState::Limp2024;
+const WORLD_STATE: WorldState = WorldState::Limp2026;
 
 fn main() {
-    let n = 10_000;
+    let n = 100_000;
     let mut num_successes = 0;
-    for _ in 0..n {
-        let (_tasks_received, success) = simulate_limpwurt();
-        if success {
-            num_successes += 1;
-        }
-    }
-    println!(
-        "Number of successes: {}, {:.2}%",
-        num_successes,
-        100.0 * num_successes as f32 / n as f32
-    );
-}
+    let mut num_tasks_received = 0;
+    let mut num_tasks_per_failed_run = vec![];
+    let mut num_tasks_per_successful_run = vec![];
 
-/// Returns the number of tasks received, and whether he escaped (i.e. got lots of points)
-fn simulate_limpwurt() -> (i32, bool) {
-    let limpwurt = PlayerState {
-        slayer_level: match WORLD_STATE {
-            WorldState::Limp2024 => 30,
-            WorldState::Limp2025 => 75,
-            WorldState::Limp2026 => 80,
+    let start = match WORLD_STATE {
+        WorldState::Limp2024 => SimulationStartPoint {
+            slayer_level: 55,
+            quests_done: vec![],
+            task_streak: 0,
+            points: 0,
+            task_state: TaskState::Active((Monster::Hellhounds, SlayerMaster::Vannaka, 40)),
         },
-        quests_done: match WORLD_STATE {
-            WorldState::Limp2024 => vec![],
-            WorldState::Limp2025 => vec![Quest::LostCity],
-            WorldState::Limp2026 => vec![Quest::LostCity],
+        WorldState::Limp2025 => SimulationStartPoint {
+            slayer_level: 75,
+            quests_done: vec![],
+            task_streak: 0,
+            points: 100,
+            task_state: TaskState::Active((Monster::Monkeys, SlayerMaster::Turael, 20)),
+        },
+        WorldState::Limp2026 => SimulationStartPoint {
+            slayer_level: 75,
+            quests_done: vec![],
+            task_streak: 0,
+            points: 100,
+            task_state: TaskState::Active((Monster::Monkeys, SlayerMaster::Turael, 20)),
         },
     };
 
+    for _ in 0..n {
+        let (tasks_received, success) = simulate_limpwurt(start.clone());
+        num_tasks_received += tasks_received;
+        if success {
+            num_successes += 1;
+            num_tasks_per_successful_run.push(tasks_received);
+        } else {
+            num_tasks_per_failed_run.push(tasks_received);
+        }
+    }
+    num_tasks_per_failed_run.sort();
+    num_tasks_per_successful_run.sort();
+    let median_successful_tasks =
+        num_tasks_per_successful_run[num_tasks_per_successful_run.len() / 2];
+    let median_failed_tasks = num_tasks_per_failed_run[num_tasks_per_failed_run.len() / 2];
+    println!(
+        "Number of successes: {}, {:.2}%, {:.1} tasks received on average, {} tasks median on success, {} tasks median on failure",
+        num_successes,
+        100.0 * num_successes as f32 / n as f32,
+        num_tasks_received as f32 / n as f32,
+        median_successful_tasks,
+        median_failed_tasks
+    );
+}
+
+#[derive(Clone)]
+struct SimulationStartPoint {
+    slayer_level: u8,
+    quests_done: Vec<Quest>,
+    task_streak: u32,
+    points: u32,
+    task_state: TaskState,
+}
+
+/// Returns the number of tasks received, and whether he escaped (i.e. got lots of points)
+fn simulate_limpwurt(start: SimulationStartPoint) -> (i32, bool) {
+    let limpwurt = PlayerState {
+        slayer_level: start.slayer_level,
+        quests_done: start.quests_done,
+    };
+
     let mut slayer_state = SlayerState {
-        task_streak: 0,
-        points: 500,
-        task_state: TaskState::Active((Monster::Monkeys, SlayerMaster::Turael, 20)),
+        task_streak: start.task_streak,
+        points: start.points,
+        task_state: start.task_state,
     };
 
     let mut rng = rand::rng();
@@ -117,7 +158,11 @@ impl SlayerMaster {
     pub fn slayer_points(&self) -> u32 {
         match self {
             SlayerMaster::Turael => 0,
-            SlayerMaster::Vannaka => 4,
+            SlayerMaster::Vannaka => match WORLD_STATE {
+                WorldState::Limp2024 => 4,
+                WorldState::Limp2025 => 4,
+                WorldState::Limp2026 => 8,
+            },
             SlayerMaster::Chaeldar => 10,
         }
     }
