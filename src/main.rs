@@ -902,7 +902,7 @@ const CHAELDAR_ASSIGNMENTS: &[Assignment] = &[
     Assignment {
         monster: Monster::SkeletalWyverns,
         amount: 10..=20,
-        quest_requirement: Some(Quest::PriestInPeril),
+        quest_requirement: Some(Quest::ElementalWorkshop),
         weight: 7,
     },
     Assignment {
