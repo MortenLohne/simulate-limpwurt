@@ -32,7 +32,7 @@ fn main() {
 fn simulate_limpwurt() -> (i32, bool) {
     let limpwurt = PlayerState {
         slayer_level: match WORLD_STATE {
-            WorldState::Limp2024 => 22,
+            WorldState::Limp2024 => 30,
             WorldState::Limp2025 => 75,
             WorldState::Limp2026 => 80,
         },
@@ -61,26 +61,33 @@ fn simulate_limpwurt() -> (i32, bool) {
             panic!("Expected an active task");
         };
 
-        let next_slayer_master = if slayer_state.task_streak >= 5 {
-            SlayerMaster::Vannaka
-        } else {
-            SlayerMaster::Turael
-        };
-
         // Simply complete the task if possible
         if monster.can_limpwurt_kill() {
             slayer_state.complete_assignment();
+            let next_slayer_master = if (slayer_state.task_streak + 1).is_multiple_of(10) {
+                SlayerMaster::Vannaka
+            } else {
+                SlayerMaster::Turael
+            };
             slayer_state.new_assignment(&mut rng, next_slayer_master, &limpwurt);
             continue;
         }
-        // If Turael assigns the monster, we must point skip
-        if TURAEL_ASSIGNMENTS
+
+        // If we're about to get a big streak bonus, point skip
+        if (slayer_state.task_streak + 1).is_multiple_of(50) && slayer_state.points >= 30 {
+            slayer_state.point_skip();
+            slayer_state.new_assignment(&mut rng, SlayerMaster::Vannaka, &limpwurt);
+            continue;
+        }
+
+        let can_be_turael_skipped = TURAEL_ASSIGNMENTS
             .iter()
-            .any(|assignment| assignment.monster == monster)
-        {
+            .all(|assignment| assignment.monster != monster);
+        // If Turael assigns the monster, we must point skip
+        if !can_be_turael_skipped {
             if slayer_state.points >= 30 {
                 slayer_state.point_skip();
-                slayer_state.new_assignment(&mut rng, next_slayer_master, &limpwurt);
+                slayer_state.new_assignment(&mut rng, SlayerMaster::Turael, &limpwurt);
                 continue;
             } else {
                 return (tasks_received, false);
@@ -146,23 +153,29 @@ impl SlayerState {
         master: SlayerMaster,
         player_state: &PlayerState,
     ) {
-        if let TaskState::Active((monster, _, _)) = self.task_state {
-            // If this is a Turael skip, reset the task counter
-            self.task_streak = 0;
-            if master != SlayerMaster::Turael {
-                panic!("Can only Turael-skip at Turael")
+        let last_task = match self.task_state {
+            TaskState::Active((monster, _, _)) => {
+                // If this is a Turael skip, reset the task counter
+                self.task_streak = 0;
+                if master != SlayerMaster::Turael {
+                    panic!("Can only Turael-skip at Turael")
+                }
+                if TURAEL_ASSIGNMENTS.iter().any(|assignment| {
+                    assignment.monster == monster && player_state.can_receive_assignment(assignment)
+                }) {
+                    panic!("Cannot Turael-skip a {} task", monster);
+                }
+                monster
             }
-            if TURAEL_ASSIGNMENTS.iter().any(|assignment| {
-                assignment.monster == monster && player_state.can_receive_assignment(assignment)
-            }) {
-                panic!("Cannot Turael-skip a {} task", monster);
-            }
-        }
+            TaskState::Completed(monster) => monster,
+        };
 
         let possible_tasks: Vec<(u32, Assignment)> = master
             .assignments()
             .iter()
-            .filter(|assignment| player_state.can_receive_assignment(assignment))
+            .filter(|assignment| {
+                player_state.can_receive_assignment(assignment) && assignment.monster != last_task
+            })
             .fold(vec![], |mut acc, assignment| {
                 acc.push((
                     acc.last().map(|(weight, _)| *weight).unwrap_or(0) + assignment.weight,
@@ -191,7 +204,7 @@ impl SlayerState {
             panic!("Cannot complete assignment when no task is active");
         };
         self.task_streak += 1;
-        if self.task_streak > 5 {
+        if self.task_streak >= 5 {
             let point_multiplier = if self.task_streak.is_multiple_of(1000) {
                 50
             } else if self.task_streak.is_multiple_of(250) {
