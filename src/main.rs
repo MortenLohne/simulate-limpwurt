@@ -18,7 +18,7 @@ fn main() {
     let start = match WORLD_STATE {
         WorldState::Limp2024 => SimulationStartPoint {
             slayer_level: 55,
-            quests_done: vec![],
+            quests_done: vec![Quest::PorcineOfInterest],
             task_streak: 0,
             points: 0,
             task_state: TaskState::Active((Monster::Hellhounds, SlayerMaster::Vannaka, 40)),
@@ -208,6 +208,14 @@ impl SlayerState {
         master: SlayerMaster,
         player_state: &PlayerState,
     ) {
+        match master {
+            SlayerMaster::Turael => (),
+            SlayerMaster::Spria => {
+                assert!(player_state.quests_done.contains(&Quest::PorcineOfInterest))
+            }
+            SlayerMaster::Vannaka => (),
+            SlayerMaster::Chaeldar => assert!(player_state.quests_done.contains(&Quest::LostCity)),
+        }
         let last_task = match self.task_state {
             TaskState::Active((monster, _, _)) => {
                 // If this is a Turael skip, reset the task counter
