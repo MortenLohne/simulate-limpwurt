@@ -4,60 +4,7 @@ use rand::Rng;
 use strum::Display;
 
 fn main() {
-    for assignment in VANNAKA_ASSIGNMENTS.iter() {
-        println!("{}, weight {}", assignment.monster, assignment.weight);
-    }
-
-    let turael_tasks_weight_sum: u32 = TURAEL_ASSIGNMENTS
-        .iter()
-        .map(|assignment| assignment.weight)
-        .sum();
-
-    let vannaka_tasks_weight_sum: u32 = VANNAKA_ASSIGNMENTS
-        .iter()
-        .map(|assignment| assignment.weight)
-        .sum();
-    println!("Turael tasks weight sum: {}", turael_tasks_weight_sum);
-    println!("Vannaka tasks number: {}", VANNAKA_ASSIGNMENTS.len());
-    println!("Vannaka tasks weight sum: {}", vannaka_tasks_weight_sum);
-
-    let limpwurt = PlayerState {
-        slayer_level: 75,
-        quests_done: vec![Quest::LostCity],
-    };
-
-    let limpwurt_turael_tasks_weight_sum: u32 = TURAEL_ASSIGNMENTS
-        .iter()
-        .filter(|assignment| limpwurt.can_receive_assignment(assignment))
-        .map(|assignment| assignment.weight)
-        .sum();
-    let limpwurt_vannaka_tasks_weight_sum: u32 = VANNAKA_ASSIGNMENTS
-        .iter()
-        .filter(|assignment| limpwurt.can_receive_assignment(assignment))
-        .map(|assignment| assignment.weight)
-        .sum();
-    println!(
-        "Limpwurt Turael tasks weight sum: {}",
-        limpwurt_turael_tasks_weight_sum
-    );
-    println!(
-        "Limpwurt Vannaka tasks weight sum: {}",
-        limpwurt_vannaka_tasks_weight_sum
-    );
-
-    let mut slayer_state = SlayerState {
-        task_streak: 0,
-        points: 0,
-        task_state: TaskState::Completed(Monster::Monkeys),
-    };
-
-    let mut rng = rand::rng();
-
-    slayer_state.new_assignment(&mut rng, SlayerMaster::Turael, &limpwurt);
-
-    println!("New assignment: {}", slayer_state.task_state,);
-
-    let n = 10_000;
+    let n = 100_000;
     let mut num_successes = 0;
     for _ in 0..n {
         let (_tasks_received, success) = simulate_limpwurt();
@@ -72,6 +19,7 @@ fn main() {
     );
 }
 
+/// Returns the number of tasks received, and whether he escaped (i.e. got lots of points)
 fn simulate_limpwurt() -> (i32, bool) {
     let limpwurt = PlayerState {
         slayer_level: 75,
@@ -89,13 +37,14 @@ fn simulate_limpwurt() -> (i32, bool) {
 
     loop {
         tasks_received += 1;
-        if slayer_state.points >= 500 {
+        if slayer_state.points >= 1000 {
             return (tasks_received, true);
         }
         let TaskState::Active((monster, _, _)) = slayer_state.task_state else {
             panic!("Expected an active task");
         };
 
+        // Simply complete the task if possible
         if monster.can_limpwurt_kill() {
             slayer_state.complete_assignment();
             let slayer_master = if slayer_state.task_streak >= 5 {
@@ -185,6 +134,8 @@ impl SlayerState {
         player_state: &PlayerState,
     ) {
         if let TaskState::Active((monster, _, _)) = self.task_state {
+            // If this is a Turael skip, reset the task counter
+            self.task_streak = 0;
             if master != SlayerMaster::Turael {
                 panic!("Can only Turael-skip at Turael")
             }
