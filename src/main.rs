@@ -26,14 +26,14 @@ fn main() {
         WorldState::Limp2025 => SimulationStartPoint {
             slayer_level: 75,
             quests_done: vec![Quest::LostCity, Quest::PorcineOfInterest],
-            task_streak: 0,
+            task_streak: 1,
             points: 120,
             task_state: TaskState::Active((Monster::Monkeys, SlayerMaster::Turael, 20)),
         },
         WorldState::Limp2026 => SimulationStartPoint {
             slayer_level: 75,
             quests_done: vec![Quest::LostCity, Quest::PorcineOfInterest],
-            task_streak: 0,
+            task_streak: 1,
             points: 120,
             task_state: TaskState::Active((Monster::Monkeys, SlayerMaster::Turael, 20)),
         },
