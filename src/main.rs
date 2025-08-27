@@ -1,4 +1,9 @@
-use std::{fmt, ops::RangeInclusive, time};
+use std::{
+    collections::HashMap,
+    fmt,
+    ops::RangeInclusive,
+    time::{self, Duration},
+};
 
 use rand::Rng;
 use rayon::prelude::*;
@@ -54,15 +59,16 @@ fn main() {
 
     let mut max_points_locked = 0;
 
-    for (tasks_received, min_points, max_points, success) in results {
-        num_tasks_received += tasks_received as u64;
+    for (slayer_data, success) in results {
+        let num_tasks = slayer_data.total_tasks_started.values().sum::<u64>();
+        num_tasks_received += num_tasks;
         if success {
             num_successes += 1;
-            num_tasks_per_successful_run.push(tasks_received);
-            min_points_per_successful_run.push(min_points);
+            num_tasks_per_successful_run.push(num_tasks);
+            min_points_per_successful_run.push(slayer_data.min_points);
         } else {
-            max_points_locked = max_points_locked.max(max_points);
-            num_tasks_per_failed_run.push(tasks_received);
+            max_points_locked = max_points_locked.max(slayer_data.max_points);
+            num_tasks_per_failed_run.push(num_tasks);
         }
     }
     num_tasks_per_failed_run.sort();
@@ -104,7 +110,7 @@ struct SimulationStartPoint {
 }
 
 /// Returns the number of tasks received, the minimum/maximum points reached, and whether he escaped (i.e. got lots of points)
-fn simulate_limpwurt(start: SimulationStartPoint) -> (i32, u32, u32, bool) {
+fn simulate_limpwurt(start: SimulationStartPoint) -> (SlayerData, bool) {
     let limpwurt = PlayerState {
         slayer_level: start.slayer_level,
         quests_done: start.quests_done,
@@ -114,19 +120,14 @@ fn simulate_limpwurt(start: SimulationStartPoint) -> (i32, u32, u32, bool) {
         task_streak: start.task_streak,
         points: start.points,
         task_state: start.task_state,
+        slayer_data: SlayerData::default(),
     };
 
     let mut rng = rand::rng();
-    let mut tasks_received = 0;
-    let mut min_points = start.points;
-    let mut max_points = start.points;
 
     loop {
-        tasks_received += 1;
-        min_points = min_points.min(slayer_state.points);
-        max_points = max_points.max(slayer_state.points);
         if slayer_state.points >= 1000 {
-            return (tasks_received, min_points, max_points, true);
+            return (slayer_state.slayer_data, true);
         }
         let TaskState::Active((monster, _, _)) = slayer_state.task_state else {
             panic!("Expected an active task");
@@ -163,7 +164,7 @@ fn simulate_limpwurt(start: SimulationStartPoint) -> (i32, u32, u32, bool) {
                 slayer_state.new_assignment(&mut rng, SlayerMaster::Spria, &limpwurt);
                 continue;
             } else {
-                return (tasks_received, min_points, max_points, false);
+                return (slayer_state.slayer_data, false);
             }
         }
         // Otherwise, we Turael skip
@@ -171,7 +172,7 @@ fn simulate_limpwurt(start: SimulationStartPoint) -> (i32, u32, u32, bool) {
     }
 }
 
-#[derive(Display, Clone, Copy, PartialEq, Eq)]
+#[derive(Display, Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(dead_code)]
 enum SlayerMaster {
     Turael,
@@ -221,10 +222,49 @@ impl fmt::Display for TaskState {
     }
 }
 
+#[derive(Clone)]
+struct SlayerData {
+    total_points: u64,
+    min_points: u64,
+    max_points: u64,
+    total_tasks_started: HashMap<(SlayerMaster, Monster), u64>,
+    total_tasks_done: HashMap<(SlayerMaster, Monster), u64>,
+    total_kills: HashMap<Monster, u64>,
+    total_time: Duration,
+    supplies_used: Supplies,
+}
+
+impl Default for SlayerData {
+    fn default() -> Self {
+        Self {
+            min_points: u64::MAX,
+            max_points: u64::MIN,
+            total_points: 0,
+            total_tasks_started: HashMap::new(),
+            total_tasks_done: HashMap::new(),
+            total_kills: HashMap::new(),
+            total_time: Duration::default(),
+            supplies_used: Supplies::default(),
+        }
+    }
+}
+
+#[derive(Default, Clone)]
+struct Supplies {
+    expeditious_bracelet_charges: u64,
+    bracelet_of_slaughter_charges: u64,
+    games_necklace_charges: u64,
+    dueling_ring_charges: u64,
+    law_runes: u64,
+    attack_potion_doses: u64,
+    strength_potion_doses: u64,
+}
+
 struct SlayerState {
     points: u32,
     task_streak: u32,
     task_state: TaskState,
+    slayer_data: SlayerData,
 }
 
 impl SlayerState {
@@ -285,14 +325,27 @@ impl SlayerState {
 
         let amount = rng.random_range(task.amount);
 
+        *self
+            .slayer_data
+            .total_tasks_started
+            .entry((master, task.monster))
+            .or_default() += 1;
+
         self.task_state = TaskState::Active((task.monster, master, amount));
     }
 
     pub fn complete_assignment(&mut self) {
-        let TaskState::Active((monster, master, _)) = self.task_state else {
+        let TaskState::Active((monster, master, amount)) = self.task_state else {
             panic!("Cannot complete assignment when no task is active");
         };
         self.task_streak += 1;
+        *self
+            .slayer_data
+            .total_tasks_done
+            .entry((master, monster))
+            .or_default() += 1;
+        *self.slayer_data.total_kills.entry(monster).or_default() += amount as u64;
+
         if self.task_streak >= 5 {
             let point_multiplier = if self.task_streak.is_multiple_of(1000) {
                 50
@@ -307,7 +360,10 @@ impl SlayerState {
             } else {
                 1
             };
-            self.points += master.slayer_points() * point_multiplier;
+            let point_awarded = master.slayer_points() * point_multiplier;
+            self.points += point_awarded;
+            self.slayer_data.total_points += point_awarded as u64;
+            self.slayer_data.max_points = self.slayer_data.max_points.max(self.points as u64);
         }
         self.task_state = TaskState::Completed(monster);
     }
@@ -319,6 +375,7 @@ impl SlayerState {
         self.task_state = TaskState::Completed(monster);
         assert!(self.points >= 30);
         self.points -= 30;
+        self.slayer_data.min_points = self.slayer_data.min_points.min(self.points as u64);
     }
 }
 
@@ -1154,7 +1211,7 @@ struct Assignment {
     weight: u32,
 }
 
-#[derive(Display, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Display, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum Monster {
     AberrantSpectres,
     AbyssalDemons,
@@ -1510,6 +1567,7 @@ fn all_monster_are_assigned_test() {
         points: 0,
         task_streak: 0,
         task_state: TaskState::Completed(Monster::Monkeys),
+        slayer_data: SlayerData::default(),
     };
 
     let mut rng = rand::rng();
