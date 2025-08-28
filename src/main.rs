@@ -34,6 +34,7 @@ fn main() {
             task_streak: 0,
             points: 0,
             task_state: TaskState::Active((Monster::Hellhounds, Vannaka, 40)),
+            storage_unlocked: false,
         },
         WorldState::Limp2025 => SimulationStartPoint {
             slayer_level: 75,
@@ -41,6 +42,7 @@ fn main() {
             task_streak: 1,
             points: 120,
             task_state: TaskState::Active((Monster::Monkeys, Turael, 20)),
+            storage_unlocked: false,
         },
         WorldState::Limp2026 => SimulationStartPoint {
             slayer_level: 75,
@@ -48,6 +50,7 @@ fn main() {
             task_streak: 1,
             points: 120,
             task_state: TaskState::Active((Monster::Monkeys, Turael, 20)),
+            storage_unlocked: false,
         },
     };
     let start_time = time::Instant::now();
@@ -55,7 +58,13 @@ fn main() {
 
     let results: Vec<_> = (0..n)
         .into_par_iter()
-        .map(|_| simulate_limpwurt(start.clone()))
+        .map(|_| {
+            simulate_limpwurt(
+                start.clone(),
+                minimize_slayer_lock_strategy,
+                terminate_simulation,
+            )
+        })
         .collect();
 
     let mut num_successes = 0;
@@ -132,6 +141,7 @@ struct SimulationStartPoint {
     task_streak: u32,
     points: u32,
     task_state: TaskState,
+    storage_unlocked: bool,
 }
 
 enum SimulationAction {
@@ -173,12 +183,14 @@ fn minimize_slayer_lock_strategy(slayer_state: &SlayerState) -> SimulationAction
 
 // Returns Some(true) of the simulation was a success, Some(false) if we got slayer-locked,
 // None otherwise
-fn terminate_simulation(slayer_state: &SlayerState) -> Option<bool> {
+fn terminate_simulation(slayer_state: &SlayerState, player_state: &PlayerState) -> Option<bool> {
     match slayer_state.task_state {
         TaskState::Active((monster, _, _)) => {
-            if monster.can_limpwurt_kill() {
-                None
-            } else if slayer_state.points < 30 && Turael.can_assign(monster) {
+            if !monster.can_limpwurt_kill()
+                && slayer_state.points < 30
+                && Turael.can_assign(monster)
+                && (!player_state.storage_unlocked || slayer_state.stored_task.is_some())
+            {
                 Some(false)
             } else {
                 None
@@ -191,27 +203,37 @@ fn terminate_simulation(slayer_state: &SlayerState) -> Option<bool> {
 }
 
 /// Returns the number of tasks received, the minimum/maximum points reached, and whether he escaped (i.e. got lots of points)
-fn simulate_limpwurt(start: SimulationStartPoint) -> (SlayerData, bool) {
+fn simulate_limpwurt<F1, F2>(
+    start: SimulationStartPoint,
+    select_action: F1,
+    should_terminate: F2,
+) -> (SlayerData, bool)
+where
+    F1: Fn(&SlayerState) -> SimulationAction,
+    F2: Fn(&SlayerState, &PlayerState) -> Option<bool>,
+{
     let limpwurt = PlayerState {
         slayer_level: start.slayer_level,
         quests_done: start.quests_done,
+        storage_unlocked: start.storage_unlocked,
     };
 
     let mut slayer_state = SlayerState {
         task_streak: start.task_streak,
         points: start.points,
         task_state: start.task_state,
+        stored_task: None,
         slayer_data: SlayerData::default(),
     };
 
     let mut rng = rand::rng();
 
     loop {
-        if let Some(result) = terminate_simulation(&slayer_state) {
+        if let Some(result) = should_terminate(&slayer_state, &limpwurt) {
             return (slayer_state.slayer_data, result);
         }
 
-        let action = minimize_slayer_lock_strategy(&slayer_state);
+        let action = select_action(&slayer_state);
 
         match action {
             SimulationAction::CompleteTask => slayer_state.complete_assignment(),
@@ -324,6 +346,7 @@ struct SlayerState {
     points: u32,
     task_streak: u32,
     task_state: TaskState,
+    stored_task: Option<(Monster, SlayerMaster, u32)>,
     slayer_data: SlayerData,
 }
 
@@ -395,6 +418,30 @@ impl SlayerState {
         self.task_state = TaskState::Active((task.monster, master, amount));
     }
 
+    pub fn store_assignment(&mut self, player_state: &PlayerState) {
+        if !player_state.storage_unlocked {
+            panic!("Cannot store assignment when storage is not unlocked");
+        }
+        let TaskState::Active((monster, master, amount)) = self.task_state else {
+            panic!("Expected an active task");
+        };
+        if self.stored_task.is_some() {
+            panic!("Cannot store assignment when one is already stored");
+        }
+        self.stored_task = Some((monster, master, amount));
+        self.task_state = TaskState::Completed(monster);
+    }
+
+    pub fn unstore_assignment(&mut self) {
+        let Some((monster, master, amount)) = self.stored_task.take() else {
+            panic!("Cannot unstore assignment when none is stored");
+        };
+        let TaskState::Completed(_) = self.task_state else {
+            panic!("Cannot unstore assignment with another already active");
+        };
+        self.task_state = TaskState::Active((monster, master, amount));
+    }
+
     pub fn complete_assignment(&mut self) {
         let TaskState::Active((monster, master, amount)) = self.task_state else {
             panic!("Cannot complete assignment when no task is active");
@@ -444,6 +491,7 @@ impl SlayerState {
 struct PlayerState {
     slayer_level: u8,
     quests_done: Vec<Quest>,
+    storage_unlocked: bool,
 }
 
 impl PlayerState {

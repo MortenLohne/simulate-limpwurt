@@ -8,6 +8,7 @@ fn turael_total_weight_test() {
     let player_state = PlayerState {
         slayer_level: 75,
         quests_done: vec![Quest::LostCity],
+        storage_unlocked: false,
     };
     let player_total_weight = total_weight_prop(&player_state, SlayerMaster::Turael);
     assert_eq!(player_total_weight, 156);
@@ -21,6 +22,7 @@ fn vannaka_total_weight_test() {
     let player_state = PlayerState {
         slayer_level: 75,
         quests_done: vec![Quest::LostCity],
+        storage_unlocked: false,
     };
     let player_total_weight = total_weight_prop(&player_state, SlayerMaster::Vannaka);
     assert_eq!(player_total_weight, 169);
@@ -34,6 +36,7 @@ fn chaeldar_total_weight_test() {
     let player_state = PlayerState {
         slayer_level: 75,
         quests_done: vec![Quest::LostCity],
+        storage_unlocked: false,
     };
     let player_total_weight = total_weight_prop(&player_state, SlayerMaster::Chaeldar);
     assert_eq!(player_total_weight, 131);
@@ -56,11 +59,13 @@ fn all_monster_are_assigned_test() {
     let player = PlayerState {
         slayer_level: 75,
         quests_done: vec![Quest::LostCity, Quest::PorcineOfInterest],
+        storage_unlocked: false,
     };
     let mut slayer_state = SlayerState {
         points: 0,
         task_streak: 0,
         task_state: TaskState::Completed(Monster::Monkeys),
+        stored_task: None,
         slayer_data: SlayerData::default(),
     };
 
