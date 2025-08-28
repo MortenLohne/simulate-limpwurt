@@ -613,13 +613,16 @@ impl SlayerState {
             .filter(|assignment| {
                 player_state.can_receive_assignment(assignment) && assignment.monster != last_task
             })
-            .fold(vec![], |mut acc, assignment| {
-                acc.push((
-                    acc.last().map(|(weight, _)| *weight).unwrap_or(0) + assignment.weight,
-                    assignment.clone(),
-                ));
-                acc
-            });
+            .fold(
+                Vec::with_capacity(master.assignments().len()),
+                |mut acc, assignment| {
+                    acc.push((
+                        acc.last().map(|(weight, _)| *weight).unwrap_or(0) + assignment.weight,
+                        assignment.clone(),
+                    ));
+                    acc
+                },
+            );
 
         let turael_tasks_weight_sum: u32 = possible_tasks.last().map_or(0, |(weight, _)| *weight);
 
