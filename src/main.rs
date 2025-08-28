@@ -10,6 +10,7 @@ mod data;
 #[cfg(test)]
 mod tests;
 
+use arrayvec::ArrayVec;
 use rand::Rng;
 use rayon::prelude::*;
 use strum::Display;
@@ -132,6 +133,56 @@ struct SimulationStartPoint {
     task_state: TaskState,
 }
 
+enum SimulationAction {
+    CompleteTask,
+    PointSkip,
+    NewAssignment(SlayerMaster),
+}
+
+fn minimize_slayer_lock_strategy(
+    slayer_state: &SlayerState,
+) -> Option<ArrayVec<SimulationAction, 4>> {
+    let TaskState::Active((monster, _, _)) = slayer_state.task_state else {
+        panic!("Expected an active task");
+    };
+
+    // Simply complete the task if possible
+    if monster.can_limpwurt_kill() {
+        // Do the 10th, 11th, 12th, 13th and 14th task at Vannaka
+        let streak_after_next_task = slayer_state.task_streak + 2;
+        let next_slayer_master = if streak_after_next_task >= 5 && streak_after_next_task % 10 <= 4
+        {
+            SlayerMaster::Vannaka
+        } else {
+            SlayerMaster::Spria
+        };
+        let mut actions = ArrayVec::new();
+        actions.push(SimulationAction::CompleteTask);
+        actions.push(SimulationAction::NewAssignment(next_slayer_master));
+        return Some(actions);
+    }
+
+    let can_be_turael_skipped = data::TURAEL_ASSIGNMENTS
+        .iter()
+        .all(|assignment| assignment.monster != monster);
+    // If Turael assigns the monster, we must point skip
+    if !can_be_turael_skipped {
+        if slayer_state.points >= 30 {
+            let mut actions = ArrayVec::new();
+            actions.push(SimulationAction::PointSkip);
+            actions.push(SimulationAction::NewAssignment(SlayerMaster::Spria));
+            return Some(actions);
+        } else {
+            return None;
+        }
+    }
+    // Otherwise, we Turael skip
+    // TODO: This will count the time cost of getting to Turael, even if we're already there
+    let mut actions = ArrayVec::new();
+    actions.push(SimulationAction::NewAssignment(SlayerMaster::Turael));
+    return Some(actions);
+}
+
 /// Returns the number of tasks received, the minimum/maximum points reached, and whether he escaped (i.e. got lots of points)
 fn simulate_limpwurt(start: SimulationStartPoint) -> (SlayerData, bool) {
     let limpwurt = PlayerState {
@@ -152,40 +203,20 @@ fn simulate_limpwurt(start: SimulationStartPoint) -> (SlayerData, bool) {
         if slayer_state.points >= 1000 {
             return (slayer_state.slayer_data, true);
         }
-        let TaskState::Active((monster, _, _)) = slayer_state.task_state else {
-            panic!("Expected an active task");
+
+        let Some(actions) = minimize_slayer_lock_strategy(&slayer_state) else {
+            return (slayer_state.slayer_data, false);
         };
 
-        // Simply complete the task if possible
-        if monster.can_limpwurt_kill() {
-            slayer_state.complete_assignment();
-            // Do the 10th, 11th, 12th, 13th and 14th task at Vannaka
-            let next_slayer_master =
-                if slayer_state.task_streak >= 4 && (slayer_state.task_streak + 1) % 10 <= 4 {
-                    SlayerMaster::Vannaka
-                } else {
-                    SlayerMaster::Spria
-                };
-            slayer_state.new_assignment(&mut rng, next_slayer_master, &limpwurt);
-            continue;
-        }
-
-        let can_be_turael_skipped = data::TURAEL_ASSIGNMENTS
-            .iter()
-            .all(|assignment| assignment.monster != monster);
-        // If Turael assigns the monster, we must point skip
-        if !can_be_turael_skipped {
-            if slayer_state.points >= 30 {
-                slayer_state.point_skip();
-                slayer_state.new_assignment(&mut rng, SlayerMaster::Spria, &limpwurt);
-                continue;
-            } else {
-                return (slayer_state.slayer_data, false);
+        for action in actions {
+            match action {
+                SimulationAction::CompleteTask => slayer_state.complete_assignment(),
+                SimulationAction::PointSkip => slayer_state.point_skip(),
+                SimulationAction::NewAssignment(master) => {
+                    slayer_state.new_assignment(&mut rng, master, &limpwurt)
+                }
             }
         }
-        // Otherwise, we Turael skip
-        // TODO: This will count the time cost of getting to Turael, even if we're already there
-        slayer_state.new_assignment(&mut rng, SlayerMaster::Turael, &limpwurt);
     }
 }
 
