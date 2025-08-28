@@ -613,8 +613,6 @@ struct Supplies {
     chronicle_charges: u64,
     skull_sceptre_charges: u64,
     law_runes: u64,
-    attack_potion_doses: u64,
-    strength_potion_doses: u64,
 }
 
 impl ops::Add for Supplies {
@@ -633,8 +631,6 @@ impl ops::Add for Supplies {
             chronicle_charges: self.chronicle_charges + rhs.chronicle_charges,
             skull_sceptre_charges: self.skull_sceptre_charges + rhs.skull_sceptre_charges,
             law_runes: self.law_runes + rhs.law_runes,
-            attack_potion_doses: self.attack_potion_doses + rhs.attack_potion_doses,
-            strength_potion_doses: self.strength_potion_doses + rhs.strength_potion_doses,
         }
     }
 }
