@@ -5,6 +5,7 @@ use std::{
     time::{self, Duration},
 };
 
+mod costs;
 mod data;
 #[cfg(test)]
 mod tests;
@@ -60,6 +61,7 @@ fn main() {
     let mut num_tasks_per_failed_run = vec![];
     let mut num_tasks_per_successful_run = vec![];
     let mut min_points_per_successful_run = vec![];
+    let mut total_time_successful_runs = vec![];
 
     let mut max_points_locked = 0;
 
@@ -70,6 +72,7 @@ fn main() {
             num_successes += 1;
             num_tasks_per_successful_run.push(num_tasks);
             min_points_per_successful_run.push(slayer_data.min_points);
+            total_time_successful_runs.push(slayer_data.total_time);
         } else {
             max_points_locked = max_points_locked.max(slayer_data.max_points);
             num_tasks_per_failed_run.push(num_tasks);
@@ -78,6 +81,7 @@ fn main() {
     num_tasks_per_failed_run.sort();
     num_tasks_per_successful_run.sort();
     min_points_per_successful_run.sort();
+    total_time_successful_runs.sort();
 
     let median_successful_tasks = num_tasks_per_successful_run
         .get(num_tasks_per_successful_run.len() / 2)
@@ -88,6 +92,9 @@ fn main() {
     let median_min_points = min_points_per_successful_run
         .get(min_points_per_successful_run.len() / 2)
         .unwrap_or(&0);
+    let median_total_time = total_time_successful_runs
+        .get(total_time_successful_runs.len() / 2)
+        .unwrap_or(&Duration::ZERO);
 
     println!("Finished in {:.1}s", start_time.elapsed().as_secs_f32());
     println!(
@@ -99,8 +106,20 @@ fn main() {
         median_failed_tasks
     );
     println!(
-        "Max points while eventually getting slayer-locked: {}, median min points on success: {}",
-        max_points_locked, median_min_points
+        "Max points while eventually getting slayer-locked: {}, median min points on success: {}, min total time on succes: {:.1} hours, median total time on success: {:.1} hours, maximum total time on success: {:.1} hours",
+        max_points_locked,
+        median_min_points,
+        total_time_successful_runs
+            .first()
+            .unwrap_or(&Duration::ZERO)
+            .as_secs_f32()
+            / 3600.0,
+        median_total_time.as_secs_f32() / 3600.0,
+        total_time_successful_runs
+            .last()
+            .unwrap_or(&Duration::ZERO)
+            .as_secs_f32()
+            / 3600.0,
     );
 }
 
@@ -151,13 +170,6 @@ fn simulate_limpwurt(start: SimulationStartPoint) -> (SlayerData, bool) {
             continue;
         }
 
-        // If we're about to get a big streak bonus, point skip
-        if (slayer_state.task_streak + 1).is_multiple_of(50) && slayer_state.points >= 30 {
-            slayer_state.point_skip();
-            slayer_state.new_assignment(&mut rng, SlayerMaster::Vannaka, &limpwurt);
-            continue;
-        }
-
         let can_be_turael_skipped = data::TURAEL_ASSIGNMENTS
             .iter()
             .all(|assignment| assignment.monster != monster);
@@ -172,6 +184,7 @@ fn simulate_limpwurt(start: SimulationStartPoint) -> (SlayerData, bool) {
             }
         }
         // Otherwise, we Turael skip
+        // TODO: This will count the time cost of getting to Turael, even if we're already there
         slayer_state.new_assignment(&mut rng, SlayerMaster::Turael, &limpwurt);
     }
 }
@@ -259,6 +272,9 @@ struct Supplies {
     bracelet_of_slaughter_charges: u64,
     games_necklace_charges: u64,
     dueling_ring_charges: u64,
+    necklace_of_passage_charges: u64,
+    chronicle_charges: u64,
+    skull_sceptre_charges: u64,
     law_runes: u64,
     attack_potion_doses: u64,
     strength_potion_doses: u64,
@@ -334,6 +350,7 @@ impl SlayerState {
             .total_tasks_started
             .entry((master, task.monster))
             .or_default() += 1;
+        self.slayer_data.assignment_cost(master);
 
         self.task_state = TaskState::Active((task.monster, master, amount));
     }
@@ -349,6 +366,7 @@ impl SlayerState {
             .entry((master, monster))
             .or_default() += 1;
         *self.slayer_data.total_kills.entry(monster).or_default() += amount as u64;
+        self.slayer_data.total_time += monster.task_time(amount);
 
         if self.task_streak >= 5 {
             let point_multiplier = if self.task_streak.is_multiple_of(1000) {
