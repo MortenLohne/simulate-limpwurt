@@ -53,7 +53,132 @@ fn main() {
             storage_unlocked: false,
         },
     };
-    run_slayer_start_simulation();
+    // run_slayer_start_simulation();
+    run_superiors_simulation();
+}
+
+pub fn run_superiors_simulation() {
+    // Simulation is only valid after the slayer update
+    assert!(WORLD_STATE == WorldState::Limp2026);
+
+    let start = SimulationStartPoint {
+        slayer_level: 80,
+        quests_done: vec![Quest::LostCity, Quest::PorcineOfInterest],
+        task_streak: 1,
+        points: 120,
+        task_state: TaskState::Active((Monster::Monkeys, Turael, 20)),
+        storage_unlocked: false,
+    };
+
+    let start_time = time::Instant::now();
+    let n = 10000;
+
+    let results: Vec<_> = (0..n)
+        .into_par_iter()
+        .map(|_| {
+            simulate_limpwurt(
+                start.clone(),
+                maximize_superiors_strategy,
+                has_all_superior_drops,
+            )
+        })
+        .collect();
+
+    let mut num_successes = 0;
+    let mut num_tasks_received: u64 = 0;
+    let mut num_tasks_per_failed_run = vec![];
+    let mut num_tasks_per_successful_run = vec![];
+    let mut min_points_per_successful_run = vec![];
+    let mut total_points_per_successful_run = vec![];
+    let mut end_points_per_successful_run = vec![];
+    let mut total_time_successful_runs = vec![];
+
+    let mut max_points_locked = 0;
+    let mut all_drops = SlayerDrops::default();
+    let mut all_supplies = Supplies::default();
+    let mut cave_crawlers_killed = 0;
+
+    for (slayer_data, end_points, success) in results {
+        let num_tasks = slayer_data.total_tasks_started.values().sum::<u64>();
+        num_tasks_received += num_tasks;
+        if success {
+            num_successes += 1;
+            num_tasks_per_successful_run.push(num_tasks);
+            min_points_per_successful_run.push(slayer_data.min_points);
+            total_points_per_successful_run.push(slayer_data.total_points);
+            end_points_per_successful_run.push(end_points);
+            total_time_successful_runs.push(slayer_data.total_time);
+        } else {
+            max_points_locked = max_points_locked.max(slayer_data.max_points);
+            num_tasks_per_failed_run.push(num_tasks);
+        }
+        all_drops = all_drops + slayer_data.drops;
+        all_supplies = all_supplies + slayer_data.supplies_used;
+        cave_crawlers_killed += slayer_data
+            .total_kills
+            .get(&Monster::CaveCrawlers)
+            .unwrap_or(&0);
+    }
+    num_tasks_per_failed_run.sort();
+    num_tasks_per_successful_run.sort();
+    min_points_per_successful_run.sort();
+    total_points_per_successful_run.sort();
+    end_points_per_successful_run.sort();
+    total_time_successful_runs.sort();
+
+    let median_successful_tasks = num_tasks_per_successful_run
+        .get(num_tasks_per_successful_run.len() / 2)
+        .unwrap_or(&0);
+    let median_failed_tasks = num_tasks_per_failed_run
+        .get(num_tasks_per_failed_run.len() / 2)
+        .unwrap_or(&0);
+    let median_min_points = min_points_per_successful_run
+        .get(min_points_per_successful_run.len() / 2)
+        .unwrap_or(&0);
+    let median_total_time = total_time_successful_runs
+        .get(total_time_successful_runs.len() / 2)
+        .unwrap_or(&Duration::ZERO);
+    let median_total_points = total_points_per_successful_run
+        .get(total_points_per_successful_run.len() / 2)
+        .unwrap_or(&0);
+    let median_end_points = end_points_per_successful_run
+        .get(end_points_per_successful_run.len() / 2)
+        .unwrap_or(&0);
+
+    println!(
+        "All drops {:?}, {} cave crawlers killed",
+        all_drops, cave_crawlers_killed
+    );
+
+    println!("Finished in {:.1}s", start_time.elapsed().as_secs_f32());
+    println!(
+        "Number of successes: {}, {:.3}%, {:.1} tasks received on average, {} tasks median on success, {} tasks median on failure",
+        num_successes,
+        100.0 * num_successes as f32 / n as f32,
+        num_tasks_received as f32 / n as f32,
+        median_successful_tasks,
+        median_failed_tasks
+    );
+    println!(
+        "Max points while eventually getting slayer-locked: {}, median min points on success: {}, min total time on succes: {:.1} hours, median total time on success: {:.1} hours, maximum total time on success: {:.1} hours",
+        max_points_locked,
+        median_min_points,
+        total_time_successful_runs
+            .first()
+            .unwrap_or(&Duration::ZERO)
+            .as_secs_f32()
+            / 3600.0,
+        median_total_time.as_secs_f32() / 3600.0,
+        total_time_successful_runs
+            .last()
+            .unwrap_or(&Duration::ZERO)
+            .as_secs_f32()
+            / 3600.0,
+    );
+    println!(
+        "Median total points: {}, median end points: {}",
+        median_total_points, median_end_points
+    );
 }
 
 pub fn run_slayer_start_simulation() {
@@ -94,7 +219,7 @@ pub fn run_slayer_start_simulation() {
     let mut all_drops = SlayerDrops::default();
     let mut cave_crawlers_killed = 0;
 
-    for (slayer_data, success) in results {
+    for (slayer_data, _, success) in results {
         let num_tasks = slayer_data.total_tasks_started.values().sum::<u64>();
         num_tasks_received += num_tasks;
         if success {
@@ -176,11 +301,15 @@ enum SimulationAction {
     CompleteTask,
     PointSkip,
     NewAssignment(SlayerMaster),
+    UnlockTaskStorage,
     StoreTask,
     UnstoreTask,
 }
 
-fn minimize_slayer_lock_strategy(slayer_state: &SlayerState) -> SimulationAction {
+fn minimize_slayer_lock_strategy(
+    slayer_state: &SlayerState,
+    _player_state: &PlayerState,
+) -> SimulationAction {
     match slayer_state.task_state {
         TaskState::Active((monster, _, _)) => {
             if monster.can_limpwurt_kill() {
@@ -229,17 +358,102 @@ fn reached_1000_points(slayer_state: &SlayerState, player_state: &PlayerState) -
     }
 }
 
+fn maximize_superiors_strategy(
+    slayer_state: &SlayerState,
+    player_state: &PlayerState,
+) -> SimulationAction {
+    if !player_state.storage_unlocked {
+        if slayer_state.points >= 620 {
+            return SimulationAction::UnlockTaskStorage;
+        }
+        return minimize_slayer_lock_strategy(slayer_state, player_state);
+    }
+    match slayer_state.task_state {
+        TaskState::Active((monster, master, _)) => {
+            if monster.can_limpwurt_kill() {
+                // Turael-skip Vannaka tasks that aren't pyrefiends
+                if master == Vannaka && monster != Monster::Pyrefiends {
+                    if !Turael.can_assign(monster) {
+                        SimulationAction::NewAssignment(Turael)
+                    // Some tasks (kalphites) cannot be turael skipped, consider point-skipping them
+                    } else if slayer_state.points >= 500 {
+                        SimulationAction::PointSkip
+                    } else {
+                        SimulationAction::CompleteTask
+                    }
+                } else {
+                    SimulationAction::CompleteTask
+                }
+            } else if Turael.can_assign(monster) {
+                if slayer_state.stored_task.is_none() {
+                    SimulationAction::StoreTask
+                } else if slayer_state.points >= 30 {
+                    SimulationAction::PointSkip
+                } else {
+                    panic!("Ran out of slayer points, simulation should have stopped already");
+                }
+            } else {
+                SimulationAction::NewAssignment(Turael)
+            }
+        }
+        TaskState::Completed(last_monster) => {
+            let streak_after_next_task = slayer_state.task_streak + 1;
+            let next_slayer_master = if streak_after_next_task % 10 == 0 {
+                Vannaka
+            } else {
+                Turael
+            };
+
+            // We don't want to have a task we can as our "last task", because it cannot be assigned again immediately
+            // We'd rather unstore a bad task, so that can re-store it, and not be assigned it this time
+            if last_monster.can_limpwurt_kill()
+                && next_slayer_master.can_assign(last_monster)
+                && let Some((stored_monster, _, _)) = slayer_state.stored_task
+                && !stored_monster.can_limpwurt_kill()
+                && next_slayer_master.can_assign(stored_monster)
+            {
+                SimulationAction::UnstoreTask
+            } else {
+                SimulationAction::NewAssignment(next_slayer_master)
+            }
+        }
+    }
+}
+
+fn has_all_superior_drops(slayer_state: &SlayerState, player_state: &PlayerState) -> Option<bool> {
+    if slayer_state.slayer_data.drops.dust_battlestaff > 0
+        && slayer_state.slayer_data.drops.mist_battlestaff > 0
+        && slayer_state.slayer_data.drops.imbued_heart > 0
+        && slayer_state.slayer_data.drops.eternal_gem > 0
+    {
+        return Some(true);
+    }
+    if let TaskState::Active((monster, _, _)) = slayer_state.task_state {
+        if !monster.can_limpwurt_kill()
+            && slayer_state.points < 30
+            && Turael.can_assign(monster)
+            && (!player_state.storage_unlocked || slayer_state.stored_task.is_some())
+        {
+            Some(false)
+        } else {
+            None
+        }
+    } else {
+        None
+    }
+}
+
 /// Returns the number of tasks received, the minimum/maximum points reached, and whether he escaped (i.e. got lots of points)
 fn simulate_limpwurt<F1, F2>(
     start: SimulationStartPoint,
     select_action: F1,
     should_terminate: F2,
-) -> (SlayerData, bool)
+) -> (SlayerData, u32, bool)
 where
-    F1: Fn(&SlayerState) -> SimulationAction,
+    F1: Fn(&SlayerState, &PlayerState) -> SimulationAction,
     F2: Fn(&SlayerState, &PlayerState) -> Option<bool>,
 {
-    let limpwurt = PlayerState {
+    let mut limpwurt = PlayerState {
         slayer_level: start.slayer_level,
         quests_done: start.quests_done,
         storage_unlocked: start.storage_unlocked,
@@ -257,16 +471,21 @@ where
 
     loop {
         if let Some(result) = should_terminate(&slayer_state, &limpwurt) {
-            return (slayer_state.slayer_data, result);
+            return (slayer_state.slayer_data, slayer_state.points, result);
         }
 
-        let action = select_action(&slayer_state);
+        let action = select_action(&slayer_state, &limpwurt);
 
         match action {
             SimulationAction::CompleteTask => slayer_state.complete_assignment(&mut rng),
             SimulationAction::PointSkip => slayer_state.point_skip(),
             SimulationAction::NewAssignment(master) => {
                 slayer_state.new_assignment(&mut rng, master, &limpwurt)
+            }
+            SimulationAction::UnlockTaskStorage => {
+                assert!(!limpwurt.storage_unlocked);
+                limpwurt.storage_unlocked = true;
+                slayer_state.points -= 500;
             }
             SimulationAction::StoreTask => slayer_state.store_task(&limpwurt),
             SimulationAction::UnstoreTask => slayer_state.unstore_task(),
@@ -371,6 +590,28 @@ struct Supplies {
     law_runes: u64,
     attack_potion_doses: u64,
     strength_potion_doses: u64,
+}
+
+impl ops::Add for Supplies {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self {
+            expeditious_bracelet_charges: self.expeditious_bracelet_charges
+                + rhs.expeditious_bracelet_charges,
+            bracelet_of_slaughter_charges: self.bracelet_of_slaughter_charges
+                + rhs.bracelet_of_slaughter_charges,
+            games_necklace_charges: self.games_necklace_charges + rhs.games_necklace_charges,
+            dueling_ring_charges: self.dueling_ring_charges + rhs.dueling_ring_charges,
+            necklace_of_passage_charges: self.necklace_of_passage_charges
+                + rhs.necklace_of_passage_charges,
+            chronicle_charges: self.chronicle_charges + rhs.chronicle_charges,
+            skull_sceptre_charges: self.skull_sceptre_charges + rhs.skull_sceptre_charges,
+            law_runes: self.law_runes + rhs.law_runes,
+            attack_potion_doses: self.attack_potion_doses + rhs.attack_potion_doses,
+            strength_potion_doses: self.strength_potion_doses + rhs.strength_potion_doses,
+        }
+    }
 }
 
 #[derive(Default, Clone, PartialEq, Eq, Debug)]

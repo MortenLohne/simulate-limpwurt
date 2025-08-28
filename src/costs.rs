@@ -201,7 +201,13 @@ impl Monster {
             Monster::Nechryael => None,
             Monster::Ogres => None,
             Monster::OtherwordlyBeings => None,
-            Monster::Pyrefiends => None,
+            Monster::Pyrefiends => Some(MonsterData {
+                // TODO: Completely guesstimated
+                travel_steps: 400,
+                time_per_kill: Duration::from_millis(15000),
+                superior_unique_drop_rate: Some(1.0 / 142.2),
+                ..Default::default()
+            }),
             Monster::Rats => Some(MonsterData {
                 travel_steps: 20,
                 time_per_kill: Duration::from_millis(2600),
