@@ -62,7 +62,7 @@ fn main() {
             simulate_limpwurt(
                 start.clone(),
                 minimize_slayer_lock_strategy,
-                terminate_simulation,
+                reached_1000_points,
             )
         })
         .collect();
@@ -148,6 +148,8 @@ enum SimulationAction {
     CompleteTask,
     PointSkip,
     NewAssignment(SlayerMaster),
+    StoreTask,
+    UnstoreTask,
 }
 
 fn minimize_slayer_lock_strategy(slayer_state: &SlayerState) -> SimulationAction {
@@ -155,10 +157,7 @@ fn minimize_slayer_lock_strategy(slayer_state: &SlayerState) -> SimulationAction
         TaskState::Active((monster, _, _)) => {
             if monster.can_limpwurt_kill() {
                 SimulationAction::CompleteTask
-            } else if !data::TURAEL_ASSIGNMENTS
-                .iter()
-                .all(|assignment| assignment.monster != monster)
-            {
+            } else if Turael.can_assign(monster) {
                 if slayer_state.points >= 30 {
                     SimulationAction::PointSkip
                 } else {
@@ -183,7 +182,7 @@ fn minimize_slayer_lock_strategy(slayer_state: &SlayerState) -> SimulationAction
 
 // Returns Some(true) of the simulation was a success, Some(false) if we got slayer-locked,
 // None otherwise
-fn terminate_simulation(slayer_state: &SlayerState, player_state: &PlayerState) -> Option<bool> {
+fn reached_1000_points(slayer_state: &SlayerState, player_state: &PlayerState) -> Option<bool> {
     match slayer_state.task_state {
         TaskState::Active((monster, _, _)) => {
             if !monster.can_limpwurt_kill()
@@ -241,6 +240,8 @@ where
             SimulationAction::NewAssignment(master) => {
                 slayer_state.new_assignment(&mut rng, master, &limpwurt)
             }
+            SimulationAction::StoreTask => slayer_state.store_task(&limpwurt),
+            SimulationAction::UnstoreTask => slayer_state.unstore_task(),
         }
     }
 }
@@ -418,26 +419,26 @@ impl SlayerState {
         self.task_state = TaskState::Active((task.monster, master, amount));
     }
 
-    pub fn store_assignment(&mut self, player_state: &PlayerState) {
+    pub fn store_task(&mut self, player_state: &PlayerState) {
         if !player_state.storage_unlocked {
-            panic!("Cannot store assignment when storage is not unlocked");
+            panic!("Cannot store task when storage is not unlocked");
         }
         let TaskState::Active((monster, master, amount)) = self.task_state else {
             panic!("Expected an active task");
         };
         if self.stored_task.is_some() {
-            panic!("Cannot store assignment when one is already stored");
+            panic!("Cannot store task when one is already stored");
         }
         self.stored_task = Some((monster, master, amount));
         self.task_state = TaskState::Completed(monster);
     }
 
-    pub fn unstore_assignment(&mut self) {
+    pub fn unstore_task(&mut self) {
         let Some((monster, master, amount)) = self.stored_task.take() else {
-            panic!("Cannot unstore assignment when none is stored");
+            panic!("Cannot unstore task when none is stored");
         };
         let TaskState::Completed(_) = self.task_state else {
-            panic!("Cannot unstore assignment with another already active");
+            panic!("Cannot unstore task with another already active");
         };
         self.task_state = TaskState::Active((monster, master, amount));
     }
