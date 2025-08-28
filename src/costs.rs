@@ -3,6 +3,8 @@ use std::time::Duration;
 use crate::{Monster, SlayerData, SlayerMaster, Supplies};
 
 const GAME_TICK: Duration = Duration::from_millis(600);
+pub const STORE_TASK_TIME: Duration = Duration::from_secs(3);
+pub const UNSTORE_TASK_TIME: Duration = Duration::from_secs(3);
 
 #[derive(Default)]
 struct MonsterData {
@@ -26,7 +28,7 @@ impl Monster {
         travel_time + kill_time
     }
 
-    pub fn task_data(&self) -> Option<MonsterData> {
+    fn task_data(&self) -> Option<MonsterData> {
         match self {
             Monster::AberrantSpectres => None,
             Monster::AbyssalDemons => None,

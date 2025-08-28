@@ -27,7 +27,7 @@ enum WorldState {
 const WORLD_STATE: WorldState = WorldState::Limp2026;
 
 fn main() {
-    let start = match WORLD_STATE {
+    let _start = match WORLD_STATE {
         WorldState::Limp2024 => SimulationStartPoint {
             slayer_level: 55,
             quests_done: vec![Quest::PorcineOfInterest],
@@ -53,6 +53,22 @@ fn main() {
             storage_unlocked: false,
         },
     };
+    run_slayer_start_simulation();
+}
+
+pub fn run_slayer_start_simulation() {
+    // Simulation is only valid after the slayer update
+    assert!(WORLD_STATE == WorldState::Limp2026);
+
+    let start = SimulationStartPoint {
+        slayer_level: 75,
+        quests_done: vec![Quest::LostCity, Quest::PorcineOfInterest],
+        task_streak: 1,
+        points: 120,
+        task_state: TaskState::Active((Monster::Monkeys, Turael, 20)),
+        storage_unlocked: false,
+    };
+
     let start_time = time::Instant::now();
     let n = 1_000_000;
 
@@ -431,6 +447,7 @@ impl SlayerState {
         }
         self.stored_task = Some((monster, master, amount));
         self.task_state = TaskState::Completed(monster);
+        self.slayer_data.total_time += costs::STORE_TASK_TIME;
     }
 
     pub fn unstore_task(&mut self) {
@@ -441,6 +458,7 @@ impl SlayerState {
             panic!("Cannot unstore task with another already active");
         };
         self.task_state = TaskState::Active((monster, master, amount));
+        self.slayer_data.total_time += costs::UNSTORE_TASK_TIME;
     }
 
     pub fn complete_assignment(&mut self) {
