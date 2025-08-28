@@ -12,7 +12,7 @@ mod data;
 #[cfg(test)]
 mod tests;
 
-use rand::Rng;
+use rand::{Rng, SeedableRng, rngs::SmallRng};
 use rayon::prelude::*;
 use strum::Display;
 
@@ -401,7 +401,7 @@ where
         slayer_data: SlayerData::default(),
     };
 
-    let mut rng = rand::rng();
+    let mut rng = SmallRng::from_os_rng();
 
     loop {
         if let Some(result) = should_terminate(&slayer_state, &limpwurt) {
