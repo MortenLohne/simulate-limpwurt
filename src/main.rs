@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     fmt,
-    ops::RangeInclusive,
+    ops::{self, RangeInclusive},
     time::{self, Duration},
 };
 
@@ -91,6 +91,8 @@ pub fn run_slayer_start_simulation() {
     let mut total_time_successful_runs = vec![];
 
     let mut max_points_locked = 0;
+    let mut all_drops = SlayerDrops::default();
+    let mut cave_crawlers_killed = 0;
 
     for (slayer_data, success) in results {
         let num_tasks = slayer_data.total_tasks_started.values().sum::<u64>();
@@ -104,6 +106,11 @@ pub fn run_slayer_start_simulation() {
             max_points_locked = max_points_locked.max(slayer_data.max_points);
             num_tasks_per_failed_run.push(num_tasks);
         }
+        all_drops = all_drops + slayer_data.drops;
+        cave_crawlers_killed += slayer_data
+            .total_kills
+            .get(&Monster::CaveCrawlers)
+            .unwrap_or(&0);
     }
     num_tasks_per_failed_run.sort();
     num_tasks_per_successful_run.sort();
@@ -122,6 +129,11 @@ pub fn run_slayer_start_simulation() {
     let median_total_time = total_time_successful_runs
         .get(total_time_successful_runs.len() / 2)
         .unwrap_or(&Duration::ZERO);
+
+    println!(
+        "All drops {:?}, {} cave crawlers killed",
+        all_drops, cave_crawlers_killed
+    );
 
     println!("Finished in {:.1}s", start_time.elapsed().as_secs_f32());
     println!(
@@ -251,7 +263,7 @@ where
         let action = select_action(&slayer_state);
 
         match action {
-            SimulationAction::CompleteTask => slayer_state.complete_assignment(),
+            SimulationAction::CompleteTask => slayer_state.complete_assignment(&mut rng),
             SimulationAction::PointSkip => slayer_state.point_skip(),
             SimulationAction::NewAssignment(master) => {
                 slayer_state.new_assignment(&mut rng, master, &limpwurt)
@@ -328,6 +340,7 @@ struct SlayerData {
     total_kills: HashMap<Monster, u64>,
     total_time: Duration,
     supplies_used: Supplies,
+    drops: SlayerDrops,
 }
 
 impl Default for SlayerData {
@@ -341,6 +354,7 @@ impl Default for SlayerData {
             total_kills: HashMap::new(),
             total_time: Duration::default(),
             supplies_used: Supplies::default(),
+            drops: SlayerDrops::default(),
         }
     }
 }
@@ -357,6 +371,27 @@ struct Supplies {
     law_runes: u64,
     attack_potion_doses: u64,
     strength_potion_doses: u64,
+}
+
+#[derive(Default, Clone, PartialEq, Eq, Debug)]
+struct SlayerDrops {
+    dust_battlestaff: u64,
+    mist_battlestaff: u64,
+    imbued_heart: u64,
+    eternal_gem: u64,
+}
+
+impl ops::Add for SlayerDrops {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self {
+            dust_battlestaff: self.dust_battlestaff + rhs.dust_battlestaff,
+            mist_battlestaff: self.mist_battlestaff + rhs.mist_battlestaff,
+            imbued_heart: self.imbued_heart + rhs.imbued_heart,
+            eternal_gem: self.eternal_gem + rhs.eternal_gem,
+        }
+    }
 }
 
 struct SlayerState {
@@ -461,7 +496,7 @@ impl SlayerState {
         self.slayer_data.total_time += costs::UNSTORE_TASK_TIME;
     }
 
-    pub fn complete_assignment(&mut self) {
+    pub fn complete_assignment<R: Rng>(&mut self, rng: &mut R) {
         let TaskState::Active((monster, master, amount)) = self.task_state else {
             panic!("Cannot complete assignment when no task is active");
         };
@@ -473,6 +508,33 @@ impl SlayerState {
             .or_default() += 1;
         *self.slayer_data.total_kills.entry(monster).or_default() += amount as u64;
         self.slayer_data.total_time += monster.task_time(amount);
+
+        // If the monster has a superior, simulate each individual kill
+        if let Some(superior_rare_drop_chance) = monster
+            .task_data()
+            .and_then(|data| data.superior_unique_drop_rate)
+        {
+            for _ in 0..amount {
+                if rng.random::<f32>() < (1.0 / 200.0) {
+                    let main_roll = rng.random::<f32>();
+                    if main_roll < superior_rare_drop_chance {
+                        let udt_roll = rng.random::<f32>();
+                        if udt_roll < 1.0 / 2.286 {
+                            self.slayer_data.drops.dust_battlestaff += 1;
+                        } else if udt_roll < 2.0 / 2.286 {
+                            self.slayer_data.drops.mist_battlestaff += 1;
+                        } else {
+                            self.slayer_data.drops.imbued_heart += 1;
+                        }
+                    } else if main_roll < 2.0 * superior_rare_drop_chance {
+                        let udt_roll = rng.random::<f32>();
+                        if udt_roll < 1.0 / 8.0 {
+                            self.slayer_data.drops.eternal_gem += 1;
+                        }
+                    }
+                }
+            }
+        }
 
         if self.task_streak >= 5 {
             let point_multiplier = if self.task_streak.is_multiple_of(1000) {

@@ -81,7 +81,7 @@ fn all_monster_are_assigned_test() {
             panic!();
         };
         *frequency.entry(monster).or_insert(0) += 1;
-        slayer_state.complete_assignment();
+        slayer_state.complete_assignment(&mut rng);
     }
 
     assert_eq!(slayer_state.task_streak, N);

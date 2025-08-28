@@ -7,13 +7,13 @@ pub const STORE_TASK_TIME: Duration = Duration::from_secs(3);
 pub const UNSTORE_TASK_TIME: Duration = Duration::from_secs(3);
 
 #[derive(Default)]
-struct MonsterData {
-    travel_steps: u32,
-    time_per_kill: Duration,
-    travel_supplies: Supplies,
-    superior_unique_drop_rate: Option<f32>,
-    use_expeditious_bracelet: bool,
-    use_bracelet_of_slaughter: bool,
+pub struct MonsterData {
+    pub travel_steps: u32,
+    pub time_per_kill: Duration,
+    pub travel_supplies: Supplies,
+    pub superior_unique_drop_rate: Option<f32>,
+    pub use_expeditious_bracelet: bool,
+    pub use_bracelet_of_slaughter: bool,
 }
 
 impl Monster {
@@ -28,7 +28,7 @@ impl Monster {
         travel_time + kill_time
     }
 
-    fn task_data(&self) -> Option<MonsterData> {
+    pub fn task_data(&self) -> Option<MonsterData> {
         match self {
             Monster::AberrantSpectres => None,
             Monster::AbyssalDemons => None,
