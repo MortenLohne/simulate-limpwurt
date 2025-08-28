@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use crate::{Assignment, Monster, SlayerData, SlayerMaster, Supplies, TaskState};
+use crate::{Monster, SlayerData, SlayerMaster, Supplies};
 
 const GAME_TICK: Duration = Duration::from_millis(600);
 
