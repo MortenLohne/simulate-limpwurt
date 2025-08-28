@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::BTreeMap,
     fmt,
     ops::{self, RangeInclusive},
     time::{self, Duration},
@@ -71,7 +71,7 @@ pub fn run_superiors_simulation() {
     };
 
     let start_time = time::Instant::now();
-    let n = 10000;
+    let n = 1000;
 
     let results: Vec<_> = (0..n)
         .into_par_iter()
@@ -91,7 +91,8 @@ pub fn run_superiors_simulation() {
     let mut min_points_per_successful_run = vec![];
     let mut total_points_per_successful_run = vec![];
     let mut end_points_per_successful_run = vec![];
-    let mut total_time_successful_runs = vec![];
+
+    let mut all_successful_runs = vec![];
 
     let mut max_points_locked = 0;
     let mut all_drops = SlayerDrops::default();
@@ -107,7 +108,7 @@ pub fn run_superiors_simulation() {
             min_points_per_successful_run.push(slayer_data.min_points);
             total_points_per_successful_run.push(slayer_data.total_points);
             end_points_per_successful_run.push(end_points);
-            total_time_successful_runs.push(slayer_data.total_time);
+            all_successful_runs.push(slayer_data.clone());
         } else {
             max_points_locked = max_points_locked.max(slayer_data.max_points);
             num_tasks_per_failed_run.push(num_tasks);
@@ -124,7 +125,7 @@ pub fn run_superiors_simulation() {
     min_points_per_successful_run.sort();
     total_points_per_successful_run.sort();
     end_points_per_successful_run.sort();
-    total_time_successful_runs.sort();
+    all_successful_runs.sort_by_key(|data| data.total_time);
 
     let median_successful_tasks = num_tasks_per_successful_run
         .get(num_tasks_per_successful_run.len() / 2)
@@ -135,9 +136,10 @@ pub fn run_superiors_simulation() {
     let median_min_points = min_points_per_successful_run
         .get(min_points_per_successful_run.len() / 2)
         .unwrap_or(&0);
-    let median_total_time = total_time_successful_runs
-        .get(total_time_successful_runs.len() / 2)
-        .unwrap_or(&Duration::ZERO);
+    let median_run = all_successful_runs
+        .get(all_successful_runs.len() / 2)
+        .unwrap_or(&SlayerData::default())
+        .clone();
     let median_total_points = total_points_per_successful_run
         .get(total_points_per_successful_run.len() / 2)
         .unwrap_or(&0);
@@ -163,15 +165,17 @@ pub fn run_superiors_simulation() {
         "Max points while eventually getting slayer-locked: {}, median min points on success: {}, min total time on succes: {:.1} hours, median total time on success: {:.1} hours, maximum total time on success: {:.1} hours",
         max_points_locked,
         median_min_points,
-        total_time_successful_runs
+        all_successful_runs
             .first()
-            .unwrap_or(&Duration::ZERO)
+            .unwrap_or(&SlayerData::default())
+            .total_time
             .as_secs_f32()
             / 3600.0,
-        median_total_time.as_secs_f32() / 3600.0,
-        total_time_successful_runs
+        median_run.total_time.as_secs_f32() / 3600.0,
+        all_successful_runs
             .last()
-            .unwrap_or(&Duration::ZERO)
+            .unwrap_or(&SlayerData::default())
+            .total_time
             .as_secs_f32()
             / 3600.0,
     );
@@ -179,6 +183,25 @@ pub fn run_superiors_simulation() {
         "Median total points: {}, median end points: {}",
         median_total_points, median_end_points
     );
+
+    println!("Median simulation:");
+    println!(
+        "{} total points, {} total exp, {:.1} total hours",
+        median_run.total_points,
+        median_run.exp,
+        median_run.total_time.as_secs_f32() / 3600.0
+    );
+    println!("Supplies used: {:?}", median_run.supplies_used);
+    println!();
+    println!("Total tasks done per slayer master:");
+    for ((master, monster), kills) in median_run.total_tasks_done {
+        println!("{:10} {:16} {}", master, monster, kills);
+    }
+    println!();
+    println!("Total kills:");
+    for (monster, kills) in median_run.total_kills {
+        println!("{:16} {}", monster, kills);
+    }
 }
 
 pub fn run_slayer_start_simulation() {
@@ -493,7 +516,7 @@ where
     }
 }
 
-#[derive(Display, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Display, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
 #[allow(dead_code)]
 enum SlayerMaster {
     Turael,
@@ -552,11 +575,12 @@ impl fmt::Display for TaskState {
 #[derive(Clone)]
 struct SlayerData {
     total_points: u64,
+    exp: u32,
     min_points: u64,
     max_points: u64,
-    total_tasks_started: HashMap<(SlayerMaster, Monster), u64>,
-    total_tasks_done: HashMap<(SlayerMaster, Monster), u64>,
-    total_kills: HashMap<Monster, u64>,
+    total_tasks_started: BTreeMap<(SlayerMaster, Monster), u64>,
+    total_tasks_done: BTreeMap<(SlayerMaster, Monster), u64>,
+    total_kills: BTreeMap<Monster, u64>,
     total_time: Duration,
     supplies_used: Supplies,
     drops: SlayerDrops,
@@ -565,12 +589,13 @@ struct SlayerData {
 impl Default for SlayerData {
     fn default() -> Self {
         Self {
+            total_points: 0,
+            exp: 0,
             min_points: u64::MAX,
             max_points: u64::MIN,
-            total_points: 0,
-            total_tasks_started: HashMap::new(),
-            total_tasks_done: HashMap::new(),
-            total_kills: HashMap::new(),
+            total_tasks_started: BTreeMap::new(),
+            total_tasks_done: BTreeMap::new(),
+            total_kills: BTreeMap::new(),
             total_time: Duration::default(),
             supplies_used: Supplies::default(),
             drops: SlayerDrops::default(),
@@ -578,7 +603,7 @@ impl Default for SlayerData {
     }
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 struct Supplies {
     expeditious_bracelet_charges: u64,
     bracelet_of_slaughter_charges: u64,
@@ -749,6 +774,12 @@ impl SlayerState {
             .or_default() += 1;
         *self.slayer_data.total_kills.entry(monster).or_default() += amount as u64;
         self.slayer_data.total_time += monster.task_time(amount);
+        self.slayer_data.exp += monster.slayer_exp() * amount;
+        self.slayer_data.supplies_used = self.slayer_data.supplies_used.clone()
+            + monster
+                .task_data()
+                .map(|data| data.travel_supplies)
+                .unwrap_or_default();
 
         // If the monster has a superior, simulate each individual kill
         if let Some(superior_rare_drop_chance) = monster

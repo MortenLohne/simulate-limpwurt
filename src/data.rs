@@ -89,6 +89,96 @@ impl Monster {
             Zombies => true,
         }
     }
+
+    pub fn slayer_exp(&self) -> u32 {
+        use Monster::*;
+        match self {
+            AberrantSpectres => 90,
+            AbyssalDemons => 150,
+            Ankous => 60,
+            Aviansie => 70,
+            Banshees => 22,
+            Basilisks => 75,
+            Bats => 8,
+            Bears => 27,
+            Birds => 3,
+            BlackDemons => 157,
+            Bloodveld => 134,
+            BlueDragons => 50, // Baby blue dragons
+            BrineRats => 50,
+            CaveBugs => 5,
+            CaveCrawlers => 22,
+            CaveHorrors => todo!(),
+            CaveKraken => todo!(),
+            CaveSlimes => 25,
+            Cockatrice => todo!(),
+            Cows => 8,
+            Crabs => todo!(),
+            CrawlingHands => todo!(),
+            Crocodiles => 62,
+            CustodianStalker => todo!(),
+            Dagannoth => todo!(),
+            DustDevils => todo!(),
+            Dogs => 27,    // Jackals
+            Dwarves => 15, // Average of the various dwarf levels
+            Elves => todo!(),
+            FeverSpiders => todo!(),
+            FireGiants => 735, // Branda the Fire Queen
+            FossilIslandWyverns => todo!(),
+            Gargoyles => todo!(),
+            Ghosts => 25, // lv 19 variant
+            Ghouls => todo!(),
+            Goblins => 7,         // Average of lv 2 and lv 5 variant
+            GreaterDemons => 102, // Average of lv 91, 100 and 101 variants
+            HarpieBugSwarms => todo!(),
+            Hellhounds => todo!(),
+            HillGiants => 35,
+            Hobgoblins => 29,
+            Icefiends => 17, // Average of lv 13 and lv 18 variants
+            IceGiants => 70,
+            IceWarriors => 59,
+            InfernalMages => todo!(),
+            Jellies => todo!(),
+            JungleHorrors => todo!(),
+            Kalphite => 40, // Kalphite workers
+            Kurask => todo!(),
+            LesserDemons => todo!(),
+            LesserNagua => todo!(),
+            Lizardmen => todo!(),
+            Lizards => 40,
+            Minotaurs => 15, // Average of lv 12 and lv 27 variants
+            Mogres => todo!(),
+            Molanisks => todo!(),
+            Monkeys => todo!(),
+            MossGiants => 60,       // Lv 42 variants
+            MutatedZygomites => 70, // Average of lv 74 and lv 86 variants
+            Nechryael => todo!(),
+            Ogres => todo!(),
+            OtherwordlyBeings => 66,
+            Pyrefiends => 45,
+            Rats => 2,
+            Scorpions => 17,
+            SeaSnakes => todo!(),
+            Shades => 5,
+            ShadowWarriors => todo!(),
+            SkeletalWyverns => todo!(),
+            Skeletons => 20, // Average of low-level variants
+            Sourhogs => 40,
+            Spiders => 2, // Level 1 spiders
+            SpiritualCreatures => todo!(),
+            TerrorDogs => todo!(),
+            Trolls => 90, // Mountain trolls
+            Turoth => todo!(),
+            TzHaar => todo!(),
+            Vampyres => todo!(),
+            WarpedCreatures => todo!(),
+            Werewolves => todo!(),
+            Wolves => 12, // Average of lv 11 and lv 14 variants
+            Wyrms => todo!(),
+            Zombies => 24, // Level 18 variants
+        }
+    }
+
     pub fn slayer_req(&self) -> u8 {
         match self {
             Monster::AberrantSpectres => 60,
