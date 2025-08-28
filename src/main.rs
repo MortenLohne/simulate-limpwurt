@@ -57,31 +57,17 @@ fn main() {
     run_superiors_simulation();
 }
 
-pub fn run_superiors_simulation() {
-    // Simulation is only valid after the slayer update
-    assert!(WORLD_STATE == WorldState::Limp2026);
-
-    let start = SimulationStartPoint {
-        slayer_level: 80,
-        quests_done: vec![Quest::LostCity, Quest::PorcineOfInterest],
-        task_streak: 1,
-        points: 120,
-        task_state: TaskState::Active((Monster::Monkeys, Turael, 20)),
-        storage_unlocked: false,
-    };
-
+fn run_simulation<F1, F2>(start: SimulationStartPoint, select_action: &F1, should_terminate: &F2)
+where
+    F1: Fn(&SlayerState, &PlayerState) -> SimulationAction + Sync,
+    F2: Fn(&SlayerState, &PlayerState) -> Option<bool> + Sync,
+{
     let start_time = time::Instant::now();
     let n = 1000;
 
     let results: Vec<_> = (0..n)
         .into_par_iter()
-        .map(|_| {
-            simulate_limpwurt(
-                start.clone(),
-                maximize_superiors_strategy,
-                has_all_superior_drops,
-            )
-        })
+        .map(|_| simulate_limpwurt(start.clone(), select_action, should_terminate))
         .collect();
 
     let mut num_successes = 0;
@@ -204,6 +190,21 @@ pub fn run_superiors_simulation() {
     }
 }
 
+pub fn run_superiors_simulation() {
+    // Simulation is only valid after the slayer update
+    assert!(WORLD_STATE == WorldState::Limp2026);
+
+    let start = SimulationStartPoint {
+        slayer_level: 80,
+        quests_done: vec![Quest::LostCity, Quest::PorcineOfInterest],
+        task_streak: 1,
+        points: 120,
+        task_state: TaskState::Active((Monster::Monkeys, Turael, 20)),
+        storage_unlocked: false,
+    };
+    run_simulation(start, &maximize_superiors_strategy, &has_all_superior_drops);
+}
+
 pub fn run_slayer_start_simulation() {
     // Simulation is only valid after the slayer update
     assert!(WORLD_STATE == WorldState::Limp2026);
@@ -217,97 +218,7 @@ pub fn run_slayer_start_simulation() {
         storage_unlocked: false,
     };
 
-    let start_time = time::Instant::now();
-    let n = 1_000_000;
-
-    let results: Vec<_> = (0..n)
-        .into_par_iter()
-        .map(|_| {
-            simulate_limpwurt(
-                start.clone(),
-                minimize_slayer_lock_strategy,
-                reached_1000_points,
-            )
-        })
-        .collect();
-
-    let mut num_successes = 0;
-    let mut num_tasks_received: u64 = 0;
-    let mut num_tasks_per_failed_run = vec![];
-    let mut num_tasks_per_successful_run = vec![];
-    let mut min_points_per_successful_run = vec![];
-    let mut total_time_successful_runs = vec![];
-
-    let mut max_points_locked = 0;
-    let mut all_drops = SlayerDrops::default();
-    let mut cave_crawlers_killed = 0;
-
-    for (slayer_data, _, success) in results {
-        let num_tasks = slayer_data.total_tasks_started.values().sum::<u64>();
-        num_tasks_received += num_tasks;
-        if success {
-            num_successes += 1;
-            num_tasks_per_successful_run.push(num_tasks);
-            min_points_per_successful_run.push(slayer_data.min_points);
-            total_time_successful_runs.push(slayer_data.total_time);
-        } else {
-            max_points_locked = max_points_locked.max(slayer_data.max_points);
-            num_tasks_per_failed_run.push(num_tasks);
-        }
-        all_drops = all_drops + slayer_data.drops;
-        cave_crawlers_killed += slayer_data
-            .total_kills
-            .get(&Monster::CaveCrawlers)
-            .unwrap_or(&0);
-    }
-    num_tasks_per_failed_run.sort();
-    num_tasks_per_successful_run.sort();
-    min_points_per_successful_run.sort();
-    total_time_successful_runs.sort();
-
-    let median_successful_tasks = num_tasks_per_successful_run
-        .get(num_tasks_per_successful_run.len() / 2)
-        .unwrap_or(&0);
-    let median_failed_tasks = num_tasks_per_failed_run
-        .get(num_tasks_per_failed_run.len() / 2)
-        .unwrap_or(&0);
-    let median_min_points = min_points_per_successful_run
-        .get(min_points_per_successful_run.len() / 2)
-        .unwrap_or(&0);
-    let median_total_time = total_time_successful_runs
-        .get(total_time_successful_runs.len() / 2)
-        .unwrap_or(&Duration::ZERO);
-
-    println!(
-        "All drops {:?}, {} cave crawlers killed",
-        all_drops, cave_crawlers_killed
-    );
-
-    println!("Finished in {:.1}s", start_time.elapsed().as_secs_f32());
-    println!(
-        "Number of successes: {}, {:.3}%, {:.1} tasks received on average, {} tasks median on success, {} tasks median on failure",
-        num_successes,
-        100.0 * num_successes as f32 / n as f32,
-        num_tasks_received as f32 / n as f32,
-        median_successful_tasks,
-        median_failed_tasks
-    );
-    println!(
-        "Max points while eventually getting slayer-locked: {}, median min points on success: {}, min total time on succes: {:.1} hours, median total time on success: {:.1} hours, maximum total time on success: {:.1} hours",
-        max_points_locked,
-        median_min_points,
-        total_time_successful_runs
-            .first()
-            .unwrap_or(&Duration::ZERO)
-            .as_secs_f32()
-            / 3600.0,
-        median_total_time.as_secs_f32() / 3600.0,
-        total_time_successful_runs
-            .last()
-            .unwrap_or(&Duration::ZERO)
-            .as_secs_f32()
-            / 3600.0,
-    );
+    run_simulation(start, &minimize_slayer_lock_strategy, &reached_1000_points);
 }
 
 #[derive(Clone)]
