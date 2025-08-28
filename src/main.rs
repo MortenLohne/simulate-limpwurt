@@ -5,6 +5,8 @@ use std::{
     time::{self, Duration},
 };
 
+use SlayerMaster::*;
+
 mod costs;
 mod data;
 #[cfg(test)]
@@ -31,21 +33,21 @@ fn main() {
             quests_done: vec![Quest::PorcineOfInterest],
             task_streak: 0,
             points: 0,
-            task_state: TaskState::Active((Monster::Hellhounds, SlayerMaster::Vannaka, 40)),
+            task_state: TaskState::Active((Monster::Hellhounds, Vannaka, 40)),
         },
         WorldState::Limp2025 => SimulationStartPoint {
             slayer_level: 75,
             quests_done: vec![Quest::LostCity, Quest::PorcineOfInterest],
             task_streak: 1,
             points: 120,
-            task_state: TaskState::Active((Monster::Monkeys, SlayerMaster::Turael, 20)),
+            task_state: TaskState::Active((Monster::Monkeys, Turael, 20)),
         },
         WorldState::Limp2026 => SimulationStartPoint {
             slayer_level: 75,
             quests_done: vec![Quest::LostCity, Quest::PorcineOfInterest],
             task_streak: 1,
             points: 120,
-            task_state: TaskState::Active((Monster::Monkeys, SlayerMaster::Turael, 20)),
+            task_state: TaskState::Active((Monster::Monkeys, Turael, 20)),
         },
     };
     let start_time = time::Instant::now();
@@ -138,34 +140,53 @@ enum SimulationAction {
     NewAssignment(SlayerMaster),
 }
 
-fn minimize_slayer_lock_strategy(slayer_state: &SlayerState) -> Option<SimulationAction> {
+fn minimize_slayer_lock_strategy(slayer_state: &SlayerState) -> SimulationAction {
     match slayer_state.task_state {
         TaskState::Active((monster, _, _)) => {
             if monster.can_limpwurt_kill() {
-                Some(SimulationAction::CompleteTask)
+                SimulationAction::CompleteTask
             } else if !data::TURAEL_ASSIGNMENTS
                 .iter()
                 .all(|assignment| assignment.monster != monster)
             {
                 if slayer_state.points >= 30 {
-                    Some(SimulationAction::PointSkip)
+                    SimulationAction::PointSkip
                 } else {
-                    None
+                    panic!("Ran out of slayer points, simulation should have stopped already");
                 }
             } else {
-                Some(SimulationAction::NewAssignment(SlayerMaster::Turael))
+                SimulationAction::NewAssignment(Turael)
             }
         }
         TaskState::Completed(_) => {
             let streak_after_next_task = slayer_state.task_streak + 1;
             let next_slayer_master =
                 if streak_after_next_task >= 5 && streak_after_next_task % 10 <= 4 {
-                    SlayerMaster::Vannaka
+                    Vannaka
                 } else {
-                    SlayerMaster::Spria
+                    Spria
                 };
-            Some(SimulationAction::NewAssignment(next_slayer_master))
+            SimulationAction::NewAssignment(next_slayer_master)
         }
+    }
+}
+
+// Returns Some(true) of the simulation was a success, Some(false) if we got slayer-locked,
+// None otherwise
+fn terminate_simulation(slayer_state: &SlayerState) -> Option<bool> {
+    match slayer_state.task_state {
+        TaskState::Active((monster, _, _)) => {
+            if monster.can_limpwurt_kill() {
+                None
+            } else if slayer_state.points < 30 && Turael.can_assign(monster) {
+                Some(false)
+            } else {
+                None
+            }
+        }
+
+        TaskState::Completed(_) if slayer_state.points >= 1000 => Some(true),
+        TaskState::Completed(_) => None,
     }
 }
 
@@ -186,13 +207,11 @@ fn simulate_limpwurt(start: SimulationStartPoint) -> (SlayerData, bool) {
     let mut rng = rand::rng();
 
     loop {
-        if slayer_state.points >= 1000 {
-            return (slayer_state.slayer_data, true);
+        if let Some(result) = terminate_simulation(&slayer_state) {
+            return (slayer_state.slayer_data, result);
         }
 
-        let Some(action) = minimize_slayer_lock_strategy(&slayer_state) else {
-            return (slayer_state.slayer_data, false);
-        };
+        let action = minimize_slayer_lock_strategy(&slayer_state);
 
         match action {
             SimulationAction::CompleteTask => slayer_state.complete_assignment(),
@@ -214,25 +233,31 @@ enum SlayerMaster {
 }
 
 impl SlayerMaster {
+    pub fn can_assign(self, monster: Monster) -> bool {
+        self.assignments()
+            .iter()
+            .any(|assignment| assignment.monster == monster)
+    }
+
     pub fn assignments(&self) -> &[Assignment] {
         match self {
-            SlayerMaster::Turael => data::TURAEL_ASSIGNMENTS,
-            SlayerMaster::Spria => data::SPRIA_ASSIGNMENTS,
-            SlayerMaster::Vannaka => data::VANNAKA_ASSIGNMENTS,
-            SlayerMaster::Chaeldar => data::CHAELDAR_ASSIGNMENTS,
+            Turael => data::TURAEL_ASSIGNMENTS,
+            Spria => data::SPRIA_ASSIGNMENTS,
+            Vannaka => data::VANNAKA_ASSIGNMENTS,
+            Chaeldar => data::CHAELDAR_ASSIGNMENTS,
         }
     }
 
     pub fn slayer_points(&self) -> u32 {
         match self {
-            SlayerMaster::Turael => 0,
-            SlayerMaster::Spria => 0,
-            SlayerMaster::Vannaka => match WORLD_STATE {
+            Turael => 0,
+            Spria => 0,
+            Vannaka => match WORLD_STATE {
                 WorldState::Limp2024 => 4,
                 WorldState::Limp2025 => 4,
                 WorldState::Limp2026 => 8,
             },
-            SlayerMaster::Chaeldar => 10,
+            Chaeldar => 10,
         }
     }
 }
@@ -310,18 +335,18 @@ impl SlayerState {
         player_state: &PlayerState,
     ) {
         match master {
-            SlayerMaster::Turael => (),
-            SlayerMaster::Spria => {
+            Turael => (),
+            Spria => {
                 assert!(player_state.quests_done.contains(&Quest::PorcineOfInterest))
             }
-            SlayerMaster::Vannaka => (),
-            SlayerMaster::Chaeldar => assert!(player_state.quests_done.contains(&Quest::LostCity)),
+            Vannaka => (),
+            Chaeldar => assert!(player_state.quests_done.contains(&Quest::LostCity)),
         }
         let last_task = match self.task_state {
             TaskState::Active((monster, _, _)) => {
                 // If this is a Turael skip, reset the task counter
                 self.task_streak = 0;
-                if master != SlayerMaster::Turael {
+                if master != Turael {
                     panic!("Can only Turael-skip at Turael")
                 }
                 if data::TURAEL_ASSIGNMENTS.iter().any(|assignment| {
