@@ -16,6 +16,8 @@ use rand::{Rng, SeedableRng, rngs::SmallRng};
 use rayon::prelude::*;
 use strum::Display;
 
+use crate::costs::MonsterData;
+
 #[derive(Display, PartialEq, Eq)]
 #[allow(dead_code)]
 enum WorldState {
@@ -184,11 +186,16 @@ where
 
     println!("Median simulation:");
     println!(
-        "{} total points, {} total exp, {} end level, {:.1} total hours",
+        "{} total points, {} total exp, {} end level, {:.1} total hours, {} total tasks",
         median_run.slayer_data.total_points,
         median_player_data.slayer_exp,
         median_player_data.slayer_level,
-        median_run.slayer_data.total_time.as_secs_f32() / 3600.0
+        median_run.slayer_data.total_time.as_secs_f32() / 3600.0,
+        median_run
+            .slayer_data
+            .total_tasks_done
+            .values()
+            .sum::<u64>()
     );
     println!("Supplies used: {:?}", median_run.slayer_data.supplies_used);
     println!();
@@ -204,11 +211,11 @@ where
 
     println!("Finished in {:.1}s", start_time.elapsed().as_secs_f32());
 
-    // let mut buckets: BTreeMap<u32, u32> = (0..=600).map(|x| (x, 0)).collect::<BTreeMap<_, _>>();
-    // for run in all_successful_runs.iter() {
+    // let mut buckets: BTreeMap<u32, u32> = (0..=800).map(|x| (x, 0)).collect::<BTreeMap<_, _>>();
+    // for (run, _) in all_successful_runs.iter() {
     //     // Bucket is the total time, measured is hundreds of hours
-    //     let bucket = (run.total_time.as_secs_f32() / (3600.0 * 100.0)) as u32;
-    //     *buckets.get_mut(&bucket.min(600)).unwrap() += 1;
+    //     let bucket = (run.slayer_data.total_time.as_secs_f32() / (3600.0 * 100.0)) as u32;
+    //     *buckets.get_mut(&bucket.min(800)).unwrap() += 1;
     // }
 
     // for (points, count) in buckets {
@@ -521,7 +528,7 @@ struct SlayerData {
     max_points: u64,
     total_tasks_started: BTreeMap<(SlayerMaster, Monster), u64>,
     total_tasks_done: BTreeMap<(SlayerMaster, Monster), u64>,
-    total_kills: BTreeMap<Monster, u64>,
+    total_kills: BTreeMap<Monster, u64>, // Tracks the number of actual kills, not the number assigned
     total_time: Duration,
     supplies_used: Supplies,
     drops: SlayerDrops,
@@ -712,25 +719,44 @@ impl SlayerState {
             .total_tasks_done
             .entry((master, monster))
             .or_default() += 1;
-        *self.slayer_data.total_kills.entry(monster).or_default() += amount as u64;
-        self.slayer_data.total_time += monster.task_time(amount);
 
-        player_state.slayer_exp += monster.slayer_exp() * amount;
-        player_state.slayer_level = data::level_for_exp(player_state.slayer_exp);
+        let task_data = monster.task_data().unwrap_or(MonsterData {
+            travel_steps: 100, // TODO: This is a completely made up and wrong average for Vannaka tasks
+            time_per_kill: Duration::from_millis(30_000),
+            ..Default::default()
+        });
 
-        self.slayer_data.supplies_used = self.slayer_data.supplies_used.clone()
-            + monster
-                .task_data()
-                .map(|data| data.travel_supplies)
-                .unwrap_or_default();
+        self.slayer_data.supplies_used =
+            self.slayer_data.supplies_used.clone() + task_data.travel_supplies.clone();
 
-        // If the monster has a superior, simulate each individual kill
-        if let Some(superior_rare_drop_chance) = monster
-            .task_data()
-            .and_then(|data| data.superior_unique_drop_rate)
+        let superior_rare_drop_chance = task_data.superior_unique_drop_rate;
+
+        // If the monster has a superior, or we're using a slayer bracelet, simulate each individual kill
+        if superior_rare_drop_chance.is_some()
+            || task_data.use_bracelet_of_slaughter
+            || task_data.use_expeditious_bracelet
         {
-            for _ in 0..amount {
-                if rng.random::<f32>() < (1.0 / 200.0) {
+            self.slayer_data.total_time += task_data.travel_time();
+
+            let mut kills_left: u32 = amount;
+            while kills_left > 0 {
+                *self.slayer_data.total_kills.entry(monster).or_default() += 1;
+                self.slayer_data.total_time += task_data.time_per_kill;
+                player_state.slayer_exp += monster.slayer_exp();
+
+                if task_data.use_bracelet_of_slaughter && rng.random::<f32>() < 0.25 {
+                    self.slayer_data.supplies_used.bracelet_of_slaughter_charges += 1;
+                    kills_left += 1; // The kill is subtracted later
+                }
+                if task_data.use_expeditious_bracelet && rng.random::<f32>() < 0.25 {
+                    self.slayer_data.supplies_used.expeditious_bracelet_charges += 1;
+                    kills_left -= 1;
+                }
+
+                if let Some(superior_rare_drop_chance) = superior_rare_drop_chance
+                    && rng.random::<f32>() < (1.0 / 200.0)
+                {
+                    kills_left = kills_left.saturating_sub(1); // The superior counts as an extra kill
                     let main_roll = rng.random::<f32>();
                     if main_roll < superior_rare_drop_chance {
                         let udt_roll = rng.random::<f32>();
@@ -748,8 +774,14 @@ impl SlayerState {
                         }
                     }
                 }
+                kills_left = kills_left.saturating_sub(1);
             }
+        } else {
+            *self.slayer_data.total_kills.entry(monster).or_default() += amount as u64;
+            self.slayer_data.total_time += monster.task_time(amount);
+            player_state.slayer_exp += monster.slayer_exp() * amount;
         }
+        player_state.slayer_level = data::level_for_exp(player_state.slayer_exp);
 
         if self.task_streak >= 5 {
             let point_multiplier = if self.task_streak.is_multiple_of(1000) {

@@ -16,6 +16,12 @@ pub struct MonsterData {
     pub use_bracelet_of_slaughter: bool,
 }
 
+impl MonsterData {
+    pub fn travel_time(&self) -> Duration {
+        (GAME_TICK * self.travel_steps).div_f32(1.5) // Assume that we run 50% of the time
+    }
+}
+
 impl Monster {
     pub fn task_time(&self, amount: u32) -> Duration {
         let monster_data = self.task_data().unwrap_or(MonsterData {
@@ -23,7 +29,7 @@ impl Monster {
             time_per_kill: Duration::from_millis(30_000),
             ..Default::default()
         });
-        let travel_time = (GAME_TICK * monster_data.travel_steps).div_f32(1.5); // Assume that we run 50% of the time
+        let travel_time = monster_data.travel_time();
         let kill_time = monster_data.time_per_kill * amount as u32;
         travel_time + kill_time
     }
@@ -84,6 +90,7 @@ impl Monster {
                     ..Default::default()
                 },
                 superior_unique_drop_rate: Some(1.0 / 166.2),
+                use_bracelet_of_slaughter: true,
                 ..Default::default()
             }),
             Monster::CaveHorrors => None,
@@ -206,6 +213,7 @@ impl Monster {
                 travel_steps: 400,
                 time_per_kill: Duration::from_millis(15000),
                 superior_unique_drop_rate: Some(1.0 / 142.2),
+                use_bracelet_of_slaughter: true,
                 ..Default::default()
             }),
             Monster::Rats => Some(MonsterData {
