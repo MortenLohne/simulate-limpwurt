@@ -1,4 +1,28 @@
+use std::sync::LazyLock;
+
 use crate::{Assignment, Monster, Quest, WORLD_STATE, WorldState};
+
+static EXP_TABLE: LazyLock<[u32; 100]> = LazyLock::new(exp_table);
+
+fn exp_table() -> [u32; 100] {
+    let mut table = [0; 100];
+    let mut level = 1;
+    let mut xp: f64 = 0.0;
+    while level <= 98 {
+        xp += (level as f64 + 300.0 * (2.0f64).powf(level as f64 / 7.0)).floor() / 4.0;
+        table[level + 1] = xp as u32;
+        level += 1;
+    }
+
+    table
+}
+
+pub fn level_for_exp(exp: u32) -> u8 {
+    match EXP_TABLE.binary_search(&exp) {
+        Ok(index) => index as u8,
+        Err(index) => index as u8 - 1,
+    }
+}
 
 impl Monster {
     pub fn can_limpwurt_kill(self) -> bool {
@@ -149,7 +173,7 @@ impl Monster {
             Minotaurs => 15, // Average of lv 12 and lv 27 variants
             Mogres => todo!(),
             Molanisks => todo!(),
-            Monkeys => todo!(),
+            Monkeys => 6,           // Karamjan monkeys
             MossGiants => 60,       // Lv 42 variants
             MutatedZygomites => 70, // Average of lv 74 and lv 86 variants
             Nechryael => todo!(),

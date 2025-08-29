@@ -29,7 +29,7 @@ const WORLD_STATE: WorldState = WorldState::Limp2026;
 fn main() {
     let _start = match WORLD_STATE {
         WorldState::Limp2024 => SimulationStartPoint {
-            slayer_level: 55,
+            slayer_exp: 168_538,
             quests_done: vec![Quest::PorcineOfInterest],
             task_streak: 0,
             points: 0,
@@ -37,7 +37,7 @@ fn main() {
             storage_unlocked: false,
         },
         WorldState::Limp2025 => SimulationStartPoint {
-            slayer_level: 75,
+            slayer_exp: 1_308_538,
             quests_done: vec![Quest::LostCity, Quest::PorcineOfInterest],
             task_streak: 1,
             points: 120,
@@ -45,7 +45,7 @@ fn main() {
             storage_unlocked: false,
         },
         WorldState::Limp2026 => SimulationStartPoint {
-            slayer_level: 75,
+            slayer_exp: 1_308_538,
             quests_done: vec![Quest::LostCity, Quest::PorcineOfInterest],
             task_streak: 1,
             points: 120,
@@ -63,7 +63,7 @@ where
     F2: Fn(&SlayerState, &PlayerState) -> Option<bool> + Sync,
 {
     let start_time = time::Instant::now();
-    let n = 1000;
+    let n = 10_000;
 
     let results: Vec<_> = (0..n)
         .into_par_iter()
@@ -85,7 +85,8 @@ where
     let mut all_supplies = Supplies::default();
     let mut cave_crawlers_killed = 0;
 
-    for (slayer_data, end_points, success) in results {
+    for (slayer_state, player_state, success) in results {
+        let slayer_data = slayer_state.slayer_data.clone();
         let num_tasks = slayer_data.total_tasks_started.values().sum::<u64>();
         num_tasks_received += num_tasks;
         if success {
@@ -93,8 +94,8 @@ where
             num_tasks_per_successful_run.push(num_tasks);
             min_points_per_successful_run.push(slayer_data.min_points);
             total_points_per_successful_run.push(slayer_data.total_points);
-            end_points_per_successful_run.push(end_points);
-            all_successful_runs.push(slayer_data.clone());
+            end_points_per_successful_run.push(slayer_state.points as u64);
+            all_successful_runs.push((slayer_state.clone(), player_state.clone()));
         } else {
             max_points_locked = max_points_locked.max(slayer_data.max_points);
             num_tasks_per_failed_run.push(num_tasks);
@@ -111,7 +112,7 @@ where
     min_points_per_successful_run.sort();
     total_points_per_successful_run.sort();
     end_points_per_successful_run.sort();
-    all_successful_runs.sort_by_key(|data| data.total_time);
+    all_successful_runs.sort_by_key(|(data, _)| data.slayer_data.total_time);
 
     let median_successful_tasks = num_tasks_per_successful_run
         .get(num_tasks_per_successful_run.len() / 2)
@@ -122,9 +123,9 @@ where
     let median_min_points = min_points_per_successful_run
         .get(min_points_per_successful_run.len() / 2)
         .unwrap_or(&0);
-    let median_run = all_successful_runs
+    let (median_run, median_player_data) = all_successful_runs
         .get(all_successful_runs.len() / 2)
-        .unwrap_or(&SlayerData::default())
+        .unwrap_or(&Default::default())
         .clone();
     let median_total_points = total_points_per_successful_run
         .get(total_points_per_successful_run.len() / 2)
@@ -132,13 +133,16 @@ where
     let median_end_points = end_points_per_successful_run
         .get(end_points_per_successful_run.len() / 2)
         .unwrap_or(&0);
+    let total_hours = all_successful_runs
+        .iter()
+        .map(|(run, _)| run.slayer_data.total_time.as_secs_f32() / 3600.0)
+        .sum::<f32>();
 
     println!(
         "All drops {:?}, {} cave crawlers killed",
         all_drops, cave_crawlers_killed
     );
 
-    println!("Finished in {:.1}s", start_time.elapsed().as_secs_f32());
     println!(
         "Number of successes: {}, {:.3}%, {:.1} tasks received on average, {} tasks median on success, {} tasks median on failure",
         num_successes,
@@ -153,17 +157,25 @@ where
         median_min_points,
         all_successful_runs
             .first()
-            .unwrap_or(&SlayerData::default())
+            .unwrap_or(&Default::default())
+            .0
+            .slayer_data
             .total_time
             .as_secs_f32()
             / 3600.0,
-        median_run.total_time.as_secs_f32() / 3600.0,
+        median_run.slayer_data.total_time.as_secs_f32() / 3600.0,
         all_successful_runs
             .last()
-            .unwrap_or(&SlayerData::default())
+            .unwrap_or(&Default::default())
+            .0
+            .slayer_data
             .total_time
             .as_secs_f32()
             / 3600.0,
+    );
+    println!(
+        "Average time: {:.1} hours",
+        total_hours / all_successful_runs.len() as f32
     );
     println!(
         "Median total points: {}, median end points: {}",
@@ -172,22 +184,36 @@ where
 
     println!("Median simulation:");
     println!(
-        "{} total points, {} total exp, {:.1} total hours",
-        median_run.total_points,
-        median_run.exp,
-        median_run.total_time.as_secs_f32() / 3600.0
+        "{} total points, {} total exp, {} end level, {:.1} total hours",
+        median_run.slayer_data.total_points,
+        median_player_data.slayer_exp,
+        median_player_data.slayer_level,
+        median_run.slayer_data.total_time.as_secs_f32() / 3600.0
     );
-    println!("Supplies used: {:?}", median_run.supplies_used);
+    println!("Supplies used: {:?}", median_run.slayer_data.supplies_used);
     println!();
     println!("Total tasks done per slayer master:");
-    for ((master, monster), kills) in median_run.total_tasks_done {
+    for ((master, monster), kills) in median_run.slayer_data.total_tasks_done {
         println!("{:10} {:16} {}", master, monster, kills);
     }
     println!();
     println!("Total kills:");
-    for (monster, kills) in median_run.total_kills {
+    for (monster, kills) in median_run.slayer_data.total_kills {
         println!("{:16} {}", monster, kills);
     }
+
+    println!("Finished in {:.1}s", start_time.elapsed().as_secs_f32());
+
+    // let mut buckets: BTreeMap<u32, u32> = (0..=600).map(|x| (x, 0)).collect::<BTreeMap<_, _>>();
+    // for run in all_successful_runs.iter() {
+    //     // Bucket is the total time, measured is hundreds of hours
+    //     let bucket = (run.total_time.as_secs_f32() / (3600.0 * 100.0)) as u32;
+    //     *buckets.get_mut(&bucket.min(600)).unwrap() += 1;
+    // }
+
+    // for (points, count) in buckets {
+    //     println!("[{}, {}],", points * 100, count);
+    // }
 }
 
 pub fn run_superiors_simulation() {
@@ -195,7 +221,7 @@ pub fn run_superiors_simulation() {
     assert!(WORLD_STATE == WorldState::Limp2026);
 
     let start = SimulationStartPoint {
-        slayer_level: 80,
+        slayer_exp: 1_308_538,
         quests_done: vec![Quest::LostCity, Quest::PorcineOfInterest],
         task_streak: 1,
         points: 120,
@@ -210,7 +236,7 @@ pub fn run_slayer_start_simulation() {
     assert!(WORLD_STATE == WorldState::Limp2026);
 
     let start = SimulationStartPoint {
-        slayer_level: 75,
+        slayer_exp: 1_308_538,
         quests_done: vec![Quest::LostCity, Quest::PorcineOfInterest],
         task_streak: 1,
         points: 120,
@@ -223,7 +249,7 @@ pub fn run_slayer_start_simulation() {
 
 #[derive(Clone)]
 struct SimulationStartPoint {
-    slayer_level: u8,
+    slayer_exp: u32,
     quests_done: Vec<Quest>,
     task_streak: u32,
     points: u32,
@@ -382,16 +408,13 @@ fn simulate_limpwurt<F1, F2>(
     start: SimulationStartPoint,
     select_action: F1,
     should_terminate: F2,
-) -> (SlayerData, u32, bool)
+) -> (SlayerState, PlayerState, bool)
 where
     F1: Fn(&SlayerState, &PlayerState) -> SimulationAction,
     F2: Fn(&SlayerState, &PlayerState) -> Option<bool>,
 {
-    let mut limpwurt = PlayerState {
-        slayer_level: start.slayer_level,
-        quests_done: start.quests_done,
-        storage_unlocked: start.storage_unlocked,
-    };
+    let mut limpwurt =
+        PlayerState::new(start.slayer_exp, start.quests_done, start.storage_unlocked);
 
     let mut slayer_state = SlayerState {
         task_streak: start.task_streak,
@@ -405,13 +428,15 @@ where
 
     loop {
         if let Some(result) = should_terminate(&slayer_state, &limpwurt) {
-            return (slayer_state.slayer_data, slayer_state.points, result);
+            return (slayer_state, limpwurt, result);
         }
 
         let action = select_action(&slayer_state, &limpwurt);
 
         match action {
-            SimulationAction::CompleteTask => slayer_state.complete_assignment(&mut rng),
+            SimulationAction::CompleteTask => {
+                slayer_state.complete_assignment(&mut rng, &mut limpwurt)
+            }
             SimulationAction::PointSkip => slayer_state.point_skip(),
             SimulationAction::NewAssignment(master) => {
                 slayer_state.new_assignment(&mut rng, master, &limpwurt)
@@ -472,6 +497,12 @@ enum TaskState {
     Completed(Monster),
 }
 
+impl Default for TaskState {
+    fn default() -> Self {
+        TaskState::Completed(Monster::Monkeys)
+    }
+}
+
 impl fmt::Display for TaskState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -486,7 +517,6 @@ impl fmt::Display for TaskState {
 #[derive(Clone)]
 struct SlayerData {
     total_points: u64,
-    exp: u32,
     min_points: u64,
     max_points: u64,
     total_tasks_started: BTreeMap<(SlayerMaster, Monster), u64>,
@@ -501,7 +531,6 @@ impl Default for SlayerData {
     fn default() -> Self {
         Self {
             total_points: 0,
-            exp: 0,
             min_points: u64::MAX,
             max_points: u64::MIN,
             total_tasks_started: BTreeMap::new(),
@@ -567,6 +596,7 @@ impl ops::Add for SlayerDrops {
     }
 }
 
+#[derive(Clone, Default)]
 struct SlayerState {
     points: u32,
     task_streak: u32,
@@ -672,7 +702,7 @@ impl SlayerState {
         self.slayer_data.total_time += costs::UNSTORE_TASK_TIME;
     }
 
-    pub fn complete_assignment<R: Rng>(&mut self, rng: &mut R) {
+    pub fn complete_assignment<R: Rng>(&mut self, rng: &mut R, player_state: &mut PlayerState) {
         let TaskState::Active((monster, master, amount)) = self.task_state else {
             panic!("Cannot complete assignment when no task is active");
         };
@@ -684,7 +714,10 @@ impl SlayerState {
             .or_default() += 1;
         *self.slayer_data.total_kills.entry(monster).or_default() += amount as u64;
         self.slayer_data.total_time += monster.task_time(amount);
-        self.slayer_data.exp += monster.slayer_exp() * amount;
+
+        player_state.slayer_exp += monster.slayer_exp() * amount;
+        player_state.slayer_level = data::level_for_exp(player_state.slayer_exp);
+
         self.slayer_data.supplies_used = self.slayer_data.supplies_used.clone()
             + monster
                 .task_data()
@@ -751,15 +784,30 @@ impl SlayerState {
     }
 }
 
+#[derive(Clone, Default)]
 struct PlayerState {
+    slayer_exp: u32,
     slayer_level: u8,
     quests_done: Vec<Quest>,
     storage_unlocked: bool,
 }
 
 impl PlayerState {
+    pub fn new(slayer_exp: u32, quests_done: Vec<Quest>, storage_unlocked: bool) -> Self {
+        Self {
+            slayer_exp,
+            slayer_level: data::level_for_exp(slayer_exp),
+            quests_done,
+            storage_unlocked,
+        }
+    }
+
+    pub fn slayer_level(&self) -> u8 {
+        self.slayer_level
+    }
+
     pub fn can_receive_assignment(&self, assignment: &Assignment) -> bool {
-        self.slayer_level >= assignment.monster.slayer_req()
+        self.slayer_level() >= assignment.monster.slayer_req()
             && assignment
                 .quest_requirement
                 .is_none_or(|quest| self.quests_done.contains(&quest))
