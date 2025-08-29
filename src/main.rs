@@ -677,11 +677,11 @@ impl SlayerState {
 
         let turael_tasks_weight_sum: u32 = possible_tasks.last().map_or(0, |(weight, _)| *weight);
 
-        let task_num = rng.random_range(0..=turael_tasks_weight_sum);
+        let task_num = rng.random_range(0..turael_tasks_weight_sum);
 
         let task = possible_tasks
             .into_iter()
-            .find(|(weight, _)| *weight >= task_num)
+            .find(|(weight, _)| *weight > task_num)
             .unwrap()
             .1;
 
