@@ -198,6 +198,18 @@ where
             .sum::<u64>()
     );
     println!("Supplies used: {:?}", median_run.slayer_data.supplies_used);
+    println!(
+        "{:.1} hours spent gathering supplies, {:.1} hours total",
+        median_run
+            .slayer_data
+            .supplies_used
+            .time_to_gather()
+            .as_secs_f32()
+            / 3600.0,
+        (median_run.slayer_data.total_time + median_run.slayer_data.supplies_used.time_to_gather())
+            .as_secs_f32()
+            / 3600.0
+    );
     println!();
     println!("Total tasks done per slayer master:");
     for ((master, monster), kills) in median_run.slayer_data.total_tasks_done {
@@ -211,11 +223,13 @@ where
 
     println!("Finished in {:.1}s", start_time.elapsed().as_secs_f32());
 
-    // let mut buckets: BTreeMap<u32, u32> = (0..=800).map(|x| (x, 0)).collect::<BTreeMap<_, _>>();
+    // let mut buckets: BTreeMap<u32, u32> = (0..=600).map(|x| (x, 0)).collect::<BTreeMap<_, _>>();
     // for (run, _) in all_successful_runs.iter() {
     //     // Bucket is the total time, measured is hundreds of hours
-    //     let bucket = (run.slayer_data.total_time.as_secs_f32() / (3600.0 * 100.0)) as u32;
-    //     *buckets.get_mut(&bucket.min(800)).unwrap() += 1;
+    //     let total_time =
+    //         run.slayer_data.total_time + run.slayer_data.supplies_used.time_to_gather();
+    //     let bucket = (total_time.as_secs_f32() / (3600.0 * 100.0)) as u32;
+    //     *buckets.get_mut(&bucket.min(600)).unwrap() += 1;
     // }
 
     // for (points, count) in buckets {

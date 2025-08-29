@@ -6,6 +6,19 @@ const GAME_TICK: Duration = Duration::from_millis(600);
 pub const STORE_TASK_TIME: Duration = Duration::from_secs(3);
 pub const UNSTORE_TASK_TIME: Duration = Duration::from_secs(3);
 
+impl Supplies {
+    pub fn time_to_gather(&self) -> Duration {
+        Duration::from_millis(3033) * self.expeditious_bracelet_charges as u32 // 91 seconds per bracelet
+        + Duration::from_secs(46) * self.bracelet_of_slaughter_charges as u32 // 23 minutes per bracelet
+        + Duration::from_secs(8) * self.games_necklace_charges as u32 // 66 seconds per necklace, TODO: Made up
+        + Duration::from_secs(8) * self.dueling_ring_charges as u32 // 66 seconds per necklace, TODO: Made up
+        + Duration::from_secs(3) * self.necklace_of_passage_charges as u32 // 24 seconds per necklace, assuming spare jades from opal grind
+        + Duration::from_millis(500) * self.chronicle_charges as u32
+        + Duration::from_secs(2) * self.skull_sceptre_charges as u32 // 15 seconds per sceptre, TODO: Made up
+        + Duration::from_millis(500) * self.law_runes as u32
+    }
+}
+
 #[derive(Default)]
 pub struct MonsterData {
     pub travel_steps: u32,
@@ -58,6 +71,7 @@ impl Monster {
                     law_runes: 1,
                     ..Default::default()
                 },
+                use_expeditious_bracelet: true,
                 ..Default::default()
             }),
             Monster::Birds => Some(MonsterData {
@@ -102,6 +116,7 @@ impl Monster {
                     law_runes: 1,
                     ..Default::default()
                 },
+                use_expeditious_bracelet: true,
                 ..Default::default()
             }),
             Monster::Cockatrice => None,
@@ -123,6 +138,7 @@ impl Monster {
             Monster::Dogs => Some(MonsterData {
                 travel_steps: 120,
                 time_per_kill: Duration::from_millis(8900),
+                use_expeditious_bracelet: true,
                 ..Default::default()
             }),
             Monster::Dwarves => Some(MonsterData {
@@ -132,6 +148,7 @@ impl Monster {
                     skull_sceptre_charges: 1,
                     ..Default::default()
                 },
+                use_expeditious_bracelet: true,
                 ..Default::default()
             }),
             Monster::Elves => None,
@@ -146,6 +163,7 @@ impl Monster {
                     skull_sceptre_charges: 1,
                     ..Default::default()
                 },
+                use_expeditious_bracelet: true,
                 ..Default::default()
             }),
             Monster::Ghouls => None,
@@ -180,6 +198,7 @@ impl Monster {
             Monster::Kalphite => Some(MonsterData {
                 travel_steps: 60,
                 time_per_kill: Duration::from_millis(10500),
+                use_expeditious_bracelet: true,
                 ..Default::default()
             }),
             Monster::Kurask => None,
@@ -245,6 +264,7 @@ impl Monster {
                     skull_sceptre_charges: 1,
                     ..Default::default()
                 },
+                use_expeditious_bracelet: true,
                 ..Default::default()
             }),
             Monster::Sourhogs => Some(MonsterData {
@@ -290,6 +310,7 @@ impl Monster {
                     skull_sceptre_charges: 1,
                     ..Default::default()
                 },
+                use_expeditious_bracelet: true,
                 ..Default::default()
             }),
         }
