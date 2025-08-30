@@ -322,20 +322,32 @@ impl SlayerData {
         match master {
             SlayerMaster::Turael => {
                 self.supplies_used.games_necklace_charges += 1;
-                self.total_time += Duration::from_secs(16);
+                // *self
+                //     .total_travels
+                //     .entry(Location::Master(master))
+                //     .or_default() += 1;
             }
             SlayerMaster::Spria => {
                 self.supplies_used.necklace_of_passage_charges += 1;
-                self.total_time += Duration::from_secs(34);
             }
             SlayerMaster::Vannaka => {
                 self.supplies_used.skull_sceptre_charges += 1;
-                self.total_time += Duration::from_secs(60);
             }
             SlayerMaster::Chaeldar => {
                 self.supplies_used.law_runes += 1;
-                self.total_time += Duration::from_secs(49);
             }
+        }
+        self.total_time += master.travel_time();
+    }
+}
+
+impl SlayerMaster {
+    pub fn travel_time(&self) -> Duration {
+        match self {
+            SlayerMaster::Turael => Duration::from_secs(16),
+            SlayerMaster::Spria => Duration::from_secs(34),
+            SlayerMaster::Vannaka => Duration::from_secs(60),
+            SlayerMaster::Chaeldar => Duration::from_secs(49),
         }
     }
 }

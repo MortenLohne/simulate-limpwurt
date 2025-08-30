@@ -14,9 +14,9 @@ mod tests;
 
 use rand::{Rng, SeedableRng, rngs::SmallRng};
 use rayon::prelude::*;
-use strum::Display;
+use strum::{Display, EnumIter, IntoEnumIterator};
 
-use crate::costs::MonsterData;
+use crate::costs::{MonsterData, STORE_TASK_TIME};
 
 #[derive(Display, PartialEq, Eq)]
 #[allow(dead_code)]
@@ -197,6 +197,10 @@ where
             .values()
             .sum::<u64>()
     );
+    println!(
+        "New time spent: {:.1} hours",
+        median_run.slayer_data.time_spent().as_secs_f32() / 3600.0
+    );
     println!("Supplies used: {:?}", median_run.slayer_data.supplies_used);
     println!(
         "{:.1} hours spent gathering supplies, {:.1} hours total",
@@ -214,6 +218,29 @@ where
     println!("Total tasks done per slayer master:");
     for ((master, monster), kills) in median_run.slayer_data.total_tasks_done {
         println!("{:10} {:16} {}", master, monster, kills);
+    }
+    println!("Average tasks done per slayer master:");
+    for master in SlayerMaster::iter() {
+        for monster in Monster::iter() {
+            let kills = all_successful_runs
+                .iter()
+                .map(|run| {
+                    run.0
+                        .slayer_data
+                        .total_tasks_done
+                        .get(&(master, monster))
+                        .unwrap_or(&0)
+                })
+                .sum::<u64>();
+            if kills > 0 {
+                println!(
+                    "{:10} {:16} {}",
+                    master,
+                    monster,
+                    kills / all_successful_runs.len() as u64
+                );
+            }
+        }
     }
     println!();
     println!("Total kills:");
@@ -473,7 +500,7 @@ where
     }
 }
 
-#[derive(Display, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
+#[derive(EnumIter, Display, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
 #[allow(dead_code)]
 enum SlayerMaster {
     Turael,
@@ -543,9 +570,40 @@ struct SlayerData {
     total_tasks_started: BTreeMap<(SlayerMaster, Monster), u64>,
     total_tasks_done: BTreeMap<(SlayerMaster, Monster), u64>,
     total_kills: BTreeMap<Monster, u64>, // Tracks the number of actual kills, not the number assigned
+    num_stored_tasks: u64,
     total_time: Duration,
     supplies_used: Supplies,
     drops: SlayerDrops,
+}
+
+impl SlayerData {
+    pub fn time_spent(&self) -> Duration {
+        let mut total_time = Duration::ZERO;
+
+        for ((master, _monster), amount) in self.total_tasks_started.iter() {
+            total_time += master.travel_time() * *amount as u32;
+        }
+        for ((_master, monster), amount) in self.total_tasks_done.iter() {
+            let monster_data = monster.task_data().unwrap_or(MonsterData {
+                travel_steps: 100, // TODO: This is a completely made up and wrong average for Vannaka tasks
+                time_per_kill: Duration::from_millis(30_000),
+                ..Default::default()
+            });
+            total_time += monster_data.travel_time() * *amount as u32;
+        }
+        for (monster, kills) in self.total_kills.iter() {
+            let monster_data = monster.task_data().unwrap_or(MonsterData {
+                travel_steps: 100, // TODO: This is a completely made up and wrong average for Vannaka tasks
+                time_per_kill: Duration::from_millis(30_000),
+                ..Default::default()
+            });
+            total_time += monster_data.time_per_kill * *kills as u32;
+        }
+        total_time += STORE_TASK_TIME * self.num_stored_tasks as u32 * 2;
+
+        total_time += self.supplies_used.time_to_gather();
+        total_time
+    }
 }
 
 impl Default for SlayerData {
@@ -557,6 +615,7 @@ impl Default for SlayerData {
             total_tasks_started: BTreeMap::new(),
             total_tasks_done: BTreeMap::new(),
             total_kills: BTreeMap::new(),
+            num_stored_tasks: 0,
             total_time: Duration::default(),
             supplies_used: Supplies::default(),
             drops: SlayerDrops::default(),
@@ -710,6 +769,7 @@ impl SlayerState {
         self.stored_task = Some((monster, master, amount));
         self.task_state = TaskState::Completed(monster);
         self.slayer_data.total_time += costs::STORE_TASK_TIME;
+        self.slayer_data.num_stored_tasks += 1;
     }
 
     pub fn unstore_task(&mut self) {
@@ -868,7 +928,7 @@ struct Assignment {
     weight: u32,
 }
 
-#[derive(Display, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(EnumIter, Display, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum Monster {
     AberrantSpectres,
     AbyssalDemons,
