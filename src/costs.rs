@@ -36,17 +36,6 @@ impl MonsterData {
 }
 
 impl Monster {
-    pub fn task_time(&self, amount: u32) -> Duration {
-        let monster_data = self.task_data().unwrap_or(MonsterData {
-            travel_steps: 100, // TODO: This is a completely made up and wrong average for Vannaka tasks
-            time_per_kill: Duration::from_millis(30_000),
-            ..Default::default()
-        });
-        let travel_time = monster_data.travel_time();
-        let kill_time = monster_data.time_per_kill * amount as u32;
-        travel_time + kill_time
-    }
-
     pub fn task_data(&self) -> Option<MonsterData> {
         match self {
             Monster::AberrantSpectres => None,
@@ -322,10 +311,6 @@ impl SlayerData {
         match master {
             SlayerMaster::Turael => {
                 self.supplies_used.games_necklace_charges += 1;
-                // *self
-                //     .total_travels
-                //     .entry(Location::Master(master))
-                //     .or_default() += 1;
             }
             SlayerMaster::Spria => {
                 self.supplies_used.necklace_of_passage_charges += 1;
@@ -337,7 +322,6 @@ impl SlayerData {
                 self.supplies_used.law_runes += 1;
             }
         }
-        self.total_time += master.travel_time();
     }
 }
 

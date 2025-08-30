@@ -788,7 +788,7 @@ pub const VANNAKA_ASSIGNMENTS: &[Assignment] = &[
     Assignment {
         monster: Monster::Nechryael,
         amount: 40..=90,
-        quest_requirement: None,
+        quest_requirement: Some(Quest::PriestInPeril),
         weight: 5,
     },
     Assignment {

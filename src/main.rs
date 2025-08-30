@@ -16,7 +16,7 @@ use rand::{Rng, SeedableRng, rngs::SmallRng};
 use rayon::prelude::*;
 use strum::{Display, EnumIter, IntoEnumIterator};
 
-use crate::costs::{MonsterData, STORE_TASK_TIME};
+use crate::costs::{MonsterData, STORE_TASK_TIME, UNSTORE_TASK_TIME};
 
 #[derive(Display, PartialEq, Eq)]
 #[allow(dead_code)]
@@ -48,7 +48,11 @@ fn main() {
         },
         WorldState::Limp2026 => SimulationStartPoint {
             slayer_exp: 1_308_538,
-            quests_done: vec![Quest::LostCity, Quest::PorcineOfInterest],
+            quests_done: vec![
+                Quest::LostCity,
+                Quest::PorcineOfInterest,
+                Quest::DragonSlayer,
+            ],
             task_streak: 1,
             points: 120,
             task_state: TaskState::Active((Monster::Monkeys, Turael, 20)),
@@ -114,7 +118,7 @@ where
     min_points_per_successful_run.sort();
     total_points_per_successful_run.sort();
     end_points_per_successful_run.sort();
-    all_successful_runs.sort_by_key(|(data, _)| data.slayer_data.total_time);
+    all_successful_runs.sort_by_cached_key(|(data, _)| data.slayer_data.time_spent());
 
     let median_successful_tasks = num_tasks_per_successful_run
         .get(num_tasks_per_successful_run.len() / 2)
@@ -137,7 +141,7 @@ where
         .unwrap_or(&0);
     let total_hours = all_successful_runs
         .iter()
-        .map(|(run, _)| run.slayer_data.total_time.as_secs_f32() / 3600.0)
+        .map(|(run, _)| run.slayer_data.time_spent().as_secs_f32() / 3600.0)
         .sum::<f32>();
 
     println!(
@@ -162,16 +166,16 @@ where
             .unwrap_or(&Default::default())
             .0
             .slayer_data
-            .total_time
+            .time_spent()
             .as_secs_f32()
             / 3600.0,
-        median_run.slayer_data.total_time.as_secs_f32() / 3600.0,
+        median_run.slayer_data.time_spent().as_secs_f32() / 3600.0,
         all_successful_runs
             .last()
             .unwrap_or(&Default::default())
             .0
             .slayer_data
-            .total_time
+            .time_spent()
             .as_secs_f32()
             / 3600.0,
     );
@@ -190,7 +194,7 @@ where
         median_run.slayer_data.total_points,
         median_player_data.slayer_exp,
         median_player_data.slayer_level,
-        median_run.slayer_data.total_time.as_secs_f32() / 3600.0,
+        median_run.slayer_data.time_spent().as_secs_f32() / 3600.0,
         median_run
             .slayer_data
             .total_tasks_done
@@ -210,9 +214,7 @@ where
             .time_to_gather()
             .as_secs_f32()
             / 3600.0,
-        (median_run.slayer_data.total_time + median_run.slayer_data.supplies_used.time_to_gather())
-            .as_secs_f32()
-            / 3600.0
+        median_run.slayer_data.time_spent().as_secs_f32() / 3600.0
     );
     println!();
     println!("Total tasks done per slayer master:");
@@ -252,10 +254,8 @@ where
 
     // let mut buckets: BTreeMap<u32, u32> = (0..=600).map(|x| (x, 0)).collect::<BTreeMap<_, _>>();
     // for (run, _) in all_successful_runs.iter() {
-    //     // Bucket is the total time, measured is hundreds of hours
-    //     let total_time =
-    //         run.slayer_data.total_time + run.slayer_data.supplies_used.time_to_gather();
-    //     let bucket = (total_time.as_secs_f32() / (3600.0 * 100.0)) as u32;
+    //     // Bucket is the total time, measured is hundreds of hours;
+    //     let bucket = (run.slayer_data.time_spent().as_secs_f32() / (3600.0 * 100.0)) as u32;
     //     *buckets.get_mut(&bucket.min(600)).unwrap() += 1;
     // }
 
@@ -570,8 +570,8 @@ struct SlayerData {
     total_tasks_started: BTreeMap<(SlayerMaster, Monster), u64>,
     total_tasks_done: BTreeMap<(SlayerMaster, Monster), u64>,
     total_kills: BTreeMap<Monster, u64>, // Tracks the number of actual kills, not the number assigned
-    num_stored_tasks: u64,
-    total_time: Duration,
+    num_stored_tasks: u64,               // Only tracked for timekeeping
+    num_unstored_tasks: u64,             // Only tracked for timekeeping
     supplies_used: Supplies,
     drops: SlayerDrops,
 }
@@ -599,7 +599,8 @@ impl SlayerData {
             });
             total_time += monster_data.time_per_kill * *kills as u32;
         }
-        total_time += STORE_TASK_TIME * self.num_stored_tasks as u32 * 2;
+        total_time += STORE_TASK_TIME * self.num_stored_tasks as u32;
+        total_time += UNSTORE_TASK_TIME * self.num_unstored_tasks as u32;
 
         total_time += self.supplies_used.time_to_gather();
         total_time
@@ -616,7 +617,7 @@ impl Default for SlayerData {
             total_tasks_done: BTreeMap::new(),
             total_kills: BTreeMap::new(),
             num_stored_tasks: 0,
-            total_time: Duration::default(),
+            num_unstored_tasks: 0,
             supplies_used: Supplies::default(),
             drops: SlayerDrops::default(),
         }
@@ -768,7 +769,6 @@ impl SlayerState {
         }
         self.stored_task = Some((monster, master, amount));
         self.task_state = TaskState::Completed(monster);
-        self.slayer_data.total_time += costs::STORE_TASK_TIME;
         self.slayer_data.num_stored_tasks += 1;
     }
 
@@ -780,7 +780,7 @@ impl SlayerState {
             panic!("Cannot unstore task with another already active");
         };
         self.task_state = TaskState::Active((monster, master, amount));
-        self.slayer_data.total_time += costs::UNSTORE_TASK_TIME;
+        self.slayer_data.num_unstored_tasks += 1;
     }
 
     pub fn complete_assignment<R: Rng>(&mut self, rng: &mut R, player_state: &mut PlayerState) {
@@ -810,12 +810,9 @@ impl SlayerState {
             || task_data.use_bracelet_of_slaughter
             || task_data.use_expeditious_bracelet
         {
-            self.slayer_data.total_time += task_data.travel_time();
-
             let mut kills_left: u32 = amount;
             while kills_left > 0 {
                 *self.slayer_data.total_kills.entry(monster).or_default() += 1;
-                self.slayer_data.total_time += task_data.time_per_kill;
                 player_state.slayer_exp += monster.slayer_exp();
 
                 if task_data.use_bracelet_of_slaughter && rng.random::<f32>() < 0.25 {
@@ -852,7 +849,6 @@ impl SlayerState {
             }
         } else {
             *self.slayer_data.total_kills.entry(monster).or_default() += amount as u64;
-            self.slayer_data.total_time += monster.task_time(amount);
             player_state.slayer_exp += monster.slayer_exp() * amount;
         }
         player_state.slayer_level = data::level_for_exp(player_state.slayer_exp);
