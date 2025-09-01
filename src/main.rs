@@ -777,8 +777,11 @@ impl SlayerData {
                 / 3600.0
         );
 
+        println!();
+        self.supplies_used.print_time_breakdown();
+
         println!(
-            "Supply gathering time: {:.1} hours",
+            "Total gathering time: {:.1} hours",
             self.supplies_used.time_to_gather().as_secs_f32() / 3600.0
         );
     }

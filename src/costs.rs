@@ -18,6 +18,49 @@ impl Supplies {
         + Duration::from_secs(8) * self.giantsoul_amulet_charges as u32 // Get big bones from hill giants, and other giants on-task
         + Duration::from_millis(500) * self.law_runes as u32
     }
+
+    pub fn print_time_breakdown(&self) {
+        println!("Supplies gathering time:");
+        println!(
+            "Opals for Expeditious Bracelets: {:.1} hours",
+            (Duration::from_millis(3033) * self.expeditious_bracelet_charges as u32).as_secs_f64()
+                / 3600.0
+        );
+        println!(
+            "Red topaz for Bracelets of Slaughter: {:.1} hours",
+            (Duration::from_secs(46) * self.bracelet_of_slaughter_charges as u32).as_secs_f64()
+                / 3600.0
+        );
+        println!(
+            "Games Necklaces: {:.1} hours",
+            (Duration::from_secs(8) * self.games_necklace_charges as u32).as_secs_f64() / 3600.0
+        );
+        println!(
+            "Dueling Rings: {:.1} hours",
+            (Duration::from_secs(8) * self.dueling_ring_charges as u32).as_secs_f64() / 3600.0
+        );
+        println!(
+            "Necklaces of Passage: {:.1} hours",
+            (Duration::from_secs(3) * self.necklace_of_passage_charges as u32).as_secs_f64()
+                / 3600.0
+        );
+        println!(
+            "Chronicle charges: {:.1} hours",
+            (Duration::from_millis(500) * self.chronicle_charges as u32).as_secs_f64() / 3600.0
+        );
+        println!(
+            "Skull Sceptre charges: {:.1} hours",
+            (Duration::from_secs(2) * self.skull_sceptre_charges as u32).as_secs_f64() / 3600.0
+        );
+        println!(
+            "Big Bones for Giantsoul Amulet charges: {:.1} hours",
+            (Duration::from_secs(8) * self.giantsoul_amulet_charges as u32).as_secs_f64() / 3600.0
+        );
+        println!(
+            "Law Runes: {:.1} hours",
+            (Duration::from_millis(500) * self.law_runes as u32).as_secs_f64() / 3600.0
+        );
+    }
 }
 
 #[derive(Default)]
