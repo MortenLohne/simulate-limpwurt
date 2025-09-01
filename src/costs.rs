@@ -417,7 +417,7 @@ impl SlayerData {
                 self.supplies_used.necklace_of_passage_charges += 1;
             }
             SlayerMaster::Vannaka => {
-                self.supplies_used.skull_sceptre_charges += 1;
+                self.supplies_used.giantsoul_amulet_charges += 1;
             }
             SlayerMaster::Chaeldar => {
                 self.supplies_used.law_runes += 1;
@@ -431,7 +431,7 @@ impl SlayerMaster {
         match self {
             SlayerMaster::Turael => Duration::from_secs(16),
             SlayerMaster::Spria => Duration::from_secs(34),
-            SlayerMaster::Vannaka => Duration::from_secs(60),
+            SlayerMaster::Vannaka => Duration::from_secs(32),
             SlayerMaster::Chaeldar => Duration::from_secs(49),
         }
     }
