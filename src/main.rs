@@ -214,32 +214,51 @@ fn run_simulation<S: Strategy + Clone + Send>(start: SimulationStartPoint) {
     );
     println!();
     println!("Total tasks done per slayer master:");
-    for ((master, monster), kills) in median_run.slayer_data.total_tasks_done {
-        println!("{:10} {:16} {}", master, monster, kills);
-    }
-    println!("Average tasks done per slayer master:");
     for master in SlayerMaster::iter() {
         for monster in Monster::iter() {
-            let kills = all_successful_runs
-                .iter()
-                .map(|run| {
-                    run.0
-                        .slayer_data
-                        .total_tasks_done
-                        .get(&(master, monster))
-                        .unwrap_or(&0)
-                })
-                .sum::<u64>();
-            if kills > 0 {
+            let tasks_received = median_run
+                .slayer_data
+                .total_tasks_started
+                .get(&(master, monster))
+                .copied()
+                .unwrap_or(0);
+            let tasks_done = median_run
+                .slayer_data
+                .total_tasks_done
+                .get(&(master, monster))
+                .copied()
+                .unwrap_or(0);
+            if tasks_received > 0 || tasks_done > 0 {
                 println!(
-                    "{:10} {:16} {}",
-                    master,
-                    monster,
-                    kills / all_successful_runs.len() as u64
+                    "{:10} {:16} {:6} ({} received)",
+                    master, monster, tasks_done, tasks_received
                 );
             }
         }
     }
+    // println!("Average tasks done per slayer master:");
+    // for master in SlayerMaster::iter() {
+    //     for monster in Monster::iter() {
+    //         let kills = all_successful_runs
+    //             .iter()
+    //             .map(|run| {
+    //                 run.0
+    //                     .slayer_data
+    //                     .total_tasks_done
+    //                     .get(&(master, monster))
+    //                     .unwrap_or(&0)
+    //             })
+    //             .sum::<u64>();
+    //         if kills > 0 {
+    //             println!(
+    //                 "{:10} {:16} {}",
+    //                 master,
+    //                 monster,
+    //                 kills / all_successful_runs.len() as u64
+    //             );
+    //         }
+    //     }
+    // }
     println!();
     println!("Total kills:");
     for (monster, kills) in median_run.slayer_data.total_kills {
@@ -266,7 +285,11 @@ pub fn run_superiors_simulation() {
 
     let start = SimulationStartPoint {
         slayer_exp: 1_308_538,
-        quests_done: vec![Quest::LostCity, Quest::PorcineOfInterest],
+        quests_done: vec![
+            Quest::LostCity,
+            Quest::PorcineOfInterest,
+            Quest::DragonSlayer,
+        ],
         task_streak: 1,
         points: 120,
         task_state: TaskState::Active((Monster::Monkeys, Turael, 20)),
@@ -282,7 +305,11 @@ pub fn run_slayer_start_simulation() {
 
     let start = SimulationStartPoint {
         slayer_exp: 1_308_538,
-        quests_done: vec![Quest::LostCity, Quest::PorcineOfInterest],
+        quests_done: vec![
+            Quest::LostCity,
+            Quest::PorcineOfInterest,
+            Quest::DragonSlayer,
+        ],
         task_streak: 1,
         points: 120,
         task_state: TaskState::Active((Monster::Monkeys, Turael, 20)),
@@ -432,7 +459,10 @@ impl Strategy for SuperiorsStrategy {
             }
             return MinimizeSlayerLockStrategy::default().select_action(slayer_state, player_state);
         }
-        if *self == SuperiorsStrategy::AccumulatePoints && slayer_state.points > 1000 {
+        if *self == SuperiorsStrategy::AccumulatePoints
+            && slayer_state.points > 1000
+            && slayer_state.task_streak % 1000 < 20
+        {
             *self = SuperiorsStrategy::GetSuperiors;
         } else if *self == SuperiorsStrategy::GetSuperiors && slayer_state.points < 500 {
             *self = SuperiorsStrategy::AccumulatePoints;
