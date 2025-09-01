@@ -63,17 +63,13 @@ fn main() {
     run_superiors_simulation();
 }
 
-fn run_simulation<F1, F2>(start: SimulationStartPoint, select_action: &F1, should_terminate: &F2)
-where
-    F1: Fn(&SlayerState, &PlayerState) -> SimulationAction + Sync,
-    F2: Fn(&SlayerState, &PlayerState) -> Option<bool> + Sync,
-{
+fn run_simulation<S: Strategy + Clone + Send>(start: SimulationStartPoint) {
     let start_time = time::Instant::now();
-    let n = 100_000;
+    let n = 10_000;
 
     let results: Vec<_> = (0..n)
         .into_par_iter()
-        .map(|_| simulate_limpwurt(start.clone(), select_action, should_terminate))
+        .map(|_| simulate_limpwurt(start.clone(), S::default()))
         .collect();
 
     let mut num_successes = 0;
@@ -276,7 +272,8 @@ pub fn run_superiors_simulation() {
         task_state: TaskState::Active((Monster::Monkeys, Turael, 20)),
         storage_unlocked: false,
     };
-    run_simulation(start, &maximize_superiors_strategy, &has_all_superior_drops);
+
+    run_simulation::<MaximizeSuperiorsStrategy>(start);
 }
 
 pub fn run_slayer_start_simulation() {
@@ -292,7 +289,7 @@ pub fn run_slayer_start_simulation() {
         storage_unlocked: false,
     };
 
-    run_simulation(start, &minimize_slayer_lock_strategy, &reached_1000_points);
+    run_simulation::<MinimizeSlayerLockStrategy>(start);
 }
 
 #[derive(Clone)]
@@ -314,42 +311,97 @@ enum SimulationAction {
     UnstoreTask,
 }
 
-fn minimize_slayer_lock_strategy(
-    slayer_state: &SlayerState,
-    _player_state: &PlayerState,
-) -> SimulationAction {
-    match slayer_state.task_state {
-        TaskState::Active((monster, _, _)) => {
-            if monster.can_limpwurt_kill() {
-                SimulationAction::CompleteTask
-            } else if Turael.can_assign(monster) {
-                if slayer_state.points >= 30 {
-                    SimulationAction::PointSkip
+trait Strategy: Default {
+    fn should_terminate(
+        &mut self,
+        slayer_state: &SlayerState,
+        player_state: &PlayerState,
+    ) -> Option<bool>;
+    fn select_action(
+        &mut self,
+        slayer_state: &SlayerState,
+        player_state: &PlayerState,
+    ) -> SimulationAction;
+}
+
+#[derive(Default, Clone)]
+struct MinimizeSlayerLockStrategy {}
+
+impl Strategy for MinimizeSlayerLockStrategy {
+    fn should_terminate(
+        &mut self,
+        slayer_state: &SlayerState,
+        player_state: &PlayerState,
+    ) -> Option<bool> {
+        match slayer_state.task_state {
+            TaskState::Active((monster, _, _)) => {
+                if !monster.can_limpwurt_kill()
+                    && slayer_state.points < 30
+                    && Turael.can_assign(monster)
+                    && (!player_state.storage_unlocked || slayer_state.stored_task.is_some())
+                {
+                    Some(false)
                 } else {
-                    panic!("Ran out of slayer points, simulation should have stopped already");
+                    None
                 }
-            } else {
-                SimulationAction::NewAssignment(Turael)
             }
+
+            TaskState::Completed(_) if slayer_state.points >= 1000 => Some(true),
+            TaskState::Completed(_) => None,
         }
-        TaskState::Completed(_) => {
-            let streak_after_next_task = slayer_state.task_streak + 1;
-            let next_slayer_master =
-                if streak_after_next_task >= 5 && streak_after_next_task % 10 <= 4 {
-                    Vannaka
+    }
+
+    fn select_action(
+        &mut self,
+        slayer_state: &SlayerState,
+        _player_state: &PlayerState,
+    ) -> SimulationAction {
+        match slayer_state.task_state {
+            TaskState::Active((monster, _, _)) => {
+                if monster.can_limpwurt_kill() {
+                    SimulationAction::CompleteTask
+                } else if Turael.can_assign(monster) {
+                    if slayer_state.points >= 30 {
+                        SimulationAction::PointSkip
+                    } else {
+                        panic!("Ran out of slayer points, simulation should have stopped already");
+                    }
                 } else {
-                    Spria
-                };
-            SimulationAction::NewAssignment(next_slayer_master)
+                    SimulationAction::NewAssignment(Turael)
+                }
+            }
+            TaskState::Completed(_) => {
+                let streak_after_next_task = slayer_state.task_streak + 1;
+                let next_slayer_master =
+                    if streak_after_next_task >= 5 && streak_after_next_task % 10 <= 4 {
+                        Vannaka
+                    } else {
+                        Spria
+                    };
+                SimulationAction::NewAssignment(next_slayer_master)
+            }
         }
     }
 }
 
-// Returns Some(true) of the simulation was a success, Some(false) if we got slayer-locked,
-// None otherwise
-fn reached_1000_points(slayer_state: &SlayerState, player_state: &PlayerState) -> Option<bool> {
-    match slayer_state.task_state {
-        TaskState::Active((monster, _, _)) => {
+#[derive(Default, Clone)]
+struct MaximizeSuperiorsStrategy {}
+
+impl Strategy for MaximizeSuperiorsStrategy {
+    fn should_terminate(
+        &mut self,
+        slayer_state: &SlayerState,
+        player_state: &PlayerState,
+    ) -> Option<bool> {
+        // Stop once we have all the superior drops
+        if slayer_state.slayer_data.drops.dust_battlestaff > 0
+            && slayer_state.slayer_data.drops.mist_battlestaff > 0
+            && slayer_state.slayer_data.drops.imbued_heart > 0
+            && slayer_state.slayer_data.drops.eternal_gem > 0
+        {
+            return Some(true);
+        }
+        if let TaskState::Active((monster, _, _)) = slayer_state.task_state {
             if !monster.can_limpwurt_kill()
                 && slayer_state.points < 30
                 && Turael.can_assign(monster)
@@ -359,108 +411,80 @@ fn reached_1000_points(slayer_state: &SlayerState, player_state: &PlayerState) -
             } else {
                 None
             }
-        }
-
-        TaskState::Completed(_) if slayer_state.points >= 1000 => Some(true),
-        TaskState::Completed(_) => None,
-    }
-}
-
-fn maximize_superiors_strategy(
-    slayer_state: &SlayerState,
-    player_state: &PlayerState,
-) -> SimulationAction {
-    if !player_state.storage_unlocked {
-        if slayer_state.points >= 620 {
-            return SimulationAction::UnlockTaskStorage;
-        }
-        return minimize_slayer_lock_strategy(slayer_state, player_state);
-    }
-    match slayer_state.task_state {
-        TaskState::Active((monster, master, _)) => {
-            if monster.can_limpwurt_kill() {
-                // Turael-skip Vannaka tasks that aren't pyrefiends
-                if master == Vannaka && monster != Monster::Pyrefiends {
-                    if !Turael.can_assign(monster) {
-                        SimulationAction::NewAssignment(Turael)
-                    // Some tasks (kalphites) cannot be turael skipped, consider point-skipping them
-                    } else if slayer_state.points >= 500 {
-                        SimulationAction::PointSkip
-                    } else {
-                        SimulationAction::CompleteTask
-                    }
-                } else {
-                    SimulationAction::CompleteTask
-                }
-            } else if Turael.can_assign(monster) {
-                if slayer_state.stored_task.is_none() {
-                    SimulationAction::StoreTask
-                } else if slayer_state.points >= 30 {
-                    SimulationAction::PointSkip
-                } else {
-                    panic!("Ran out of slayer points, simulation should have stopped already");
-                }
-            } else {
-                SimulationAction::NewAssignment(Turael)
-            }
-        }
-        TaskState::Completed(last_monster) => {
-            let streak_after_next_task = slayer_state.task_streak + 1;
-            let next_slayer_master = if streak_after_next_task % 10 == 0 {
-                Vannaka
-            } else {
-                Turael
-            };
-
-            // We don't want to have a task we can as our "last task", because it cannot be assigned again immediately
-            // We'd rather unstore a bad task, so that can re-store it, and not be assigned it this time
-            if last_monster.can_limpwurt_kill()
-                && next_slayer_master.can_assign(last_monster)
-                && let Some((stored_monster, _, _)) = slayer_state.stored_task
-                && !stored_monster.can_limpwurt_kill()
-                && next_slayer_master.can_assign(stored_monster)
-            {
-                SimulationAction::UnstoreTask
-            } else {
-                SimulationAction::NewAssignment(next_slayer_master)
-            }
-        }
-    }
-}
-
-fn has_all_superior_drops(slayer_state: &SlayerState, player_state: &PlayerState) -> Option<bool> {
-    if slayer_state.slayer_data.drops.dust_battlestaff > 0
-        && slayer_state.slayer_data.drops.mist_battlestaff > 0
-        && slayer_state.slayer_data.drops.imbued_heart > 0
-        && slayer_state.slayer_data.drops.eternal_gem > 0
-    {
-        return Some(true);
-    }
-    if let TaskState::Active((monster, _, _)) = slayer_state.task_state {
-        if !monster.can_limpwurt_kill()
-            && slayer_state.points < 30
-            && Turael.can_assign(monster)
-            && (!player_state.storage_unlocked || slayer_state.stored_task.is_some())
-        {
-            Some(false)
         } else {
             None
         }
-    } else {
-        None
+    }
+
+    fn select_action(
+        &mut self,
+        slayer_state: &SlayerState,
+        player_state: &PlayerState,
+    ) -> SimulationAction {
+        if !player_state.storage_unlocked {
+            if slayer_state.points >= 620 {
+                return SimulationAction::UnlockTaskStorage;
+            }
+            return MinimizeSlayerLockStrategy::default().select_action(slayer_state, player_state);
+        }
+        match slayer_state.task_state {
+            TaskState::Active((monster, master, _)) => {
+                if monster.can_limpwurt_kill() {
+                    // Turael-skip Vannaka tasks that aren't pyrefiends
+                    if master == Vannaka && monster != Monster::Pyrefiends {
+                        if !Turael.can_assign(monster) {
+                            SimulationAction::NewAssignment(Turael)
+                        // Some tasks (kalphites) cannot be turael skipped, consider point-skipping them
+                        } else if slayer_state.points >= 500 {
+                            SimulationAction::PointSkip
+                        } else {
+                            SimulationAction::CompleteTask
+                        }
+                    } else {
+                        SimulationAction::CompleteTask
+                    }
+                } else if Turael.can_assign(monster) {
+                    if slayer_state.stored_task.is_none() {
+                        SimulationAction::StoreTask
+                    } else if slayer_state.points >= 30 {
+                        SimulationAction::PointSkip
+                    } else {
+                        panic!("Ran out of slayer points, simulation should have stopped already");
+                    }
+                } else {
+                    SimulationAction::NewAssignment(Turael)
+                }
+            }
+            TaskState::Completed(last_monster) => {
+                let streak_after_next_task = slayer_state.task_streak + 1;
+                let next_slayer_master = if streak_after_next_task % 10 == 0 {
+                    Vannaka
+                } else {
+                    Turael
+                };
+
+                // We don't want to have a task we can as our "last task", because it cannot be assigned again immediately
+                // We'd rather unstore a bad task, so that can re-store it, and not be assigned it this time
+                if last_monster.can_limpwurt_kill()
+                    && next_slayer_master.can_assign(last_monster)
+                    && let Some((stored_monster, _, _)) = slayer_state.stored_task
+                    && !stored_monster.can_limpwurt_kill()
+                    && next_slayer_master.can_assign(stored_monster)
+                {
+                    SimulationAction::UnstoreTask
+                } else {
+                    SimulationAction::NewAssignment(next_slayer_master)
+                }
+            }
+        }
     }
 }
 
 /// Returns the number of tasks received, the minimum/maximum points reached, and whether he escaped (i.e. got lots of points)
-fn simulate_limpwurt<F1, F2>(
+fn simulate_limpwurt<S: Strategy + Clone + Send>(
     start: SimulationStartPoint,
-    select_action: F1,
-    should_terminate: F2,
-) -> (SlayerState, PlayerState, bool)
-where
-    F1: Fn(&SlayerState, &PlayerState) -> SimulationAction,
-    F2: Fn(&SlayerState, &PlayerState) -> Option<bool>,
-{
+    mut strategy: S,
+) -> (SlayerState, PlayerState, bool) {
     let mut limpwurt =
         PlayerState::new(start.slayer_exp, start.quests_done, start.storage_unlocked);
 
@@ -475,11 +499,11 @@ where
     let mut rng = SmallRng::from_os_rng();
 
     loop {
-        if let Some(result) = should_terminate(&slayer_state, &limpwurt) {
+        if let Some(result) = strategy.should_terminate(&slayer_state, &limpwurt) {
             return (slayer_state, limpwurt, result);
         }
 
-        let action = select_action(&slayer_state, &limpwurt);
+        let action = strategy.select_action(&slayer_state, &limpwurt);
 
         match action {
             SimulationAction::CompleteTask => {
