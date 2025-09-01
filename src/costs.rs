@@ -266,7 +266,16 @@ impl Monster {
             }),
             Monster::Mogres => None,
             Monster::Molanisks => None,
-            Monster::Monkeys => None,
+            Monster::Monkeys => Some(MonsterData {
+                travel_steps: 120,
+                time_per_kill: Duration::from_millis(4100),
+                travel_supplies: Supplies {
+                    law_runes: 1,
+                    ..Default::default()
+                },
+                use_expeditious_bracelet: true,
+                ..Default::default()
+            }),
             Monster::MossGiants => Some(MonsterData {
                 travel_steps: 22,
                 time_per_kill: Duration::from_millis(12_600),
@@ -280,7 +289,16 @@ impl Monster {
             Monster::MutatedZygomites => None,
             Monster::Nechryael => None,
             Monster::Ogres => None,
-            Monster::OtherwordlyBeings => None,
+            Monster::OtherwordlyBeings => Some(MonsterData {
+                travel_steps: 240,
+                time_per_kill: Duration::from_millis(14_000),
+                travel_supplies: Supplies {
+                    law_runes: 1,
+                    ..Default::default()
+                },
+                use_expeditious_bracelet: true,
+                ..Default::default()
+            }),
             Monster::Pyrefiends => Some(MonsterData {
                 // TODO: Completely guesstimated
                 travel_steps: 400,

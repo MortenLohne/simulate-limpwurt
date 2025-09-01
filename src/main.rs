@@ -16,7 +16,7 @@ use rand::{Rng, SeedableRng, rngs::SmallRng};
 use rayon::prelude::*;
 use strum::{Display, EnumIter, IntoEnumIterator};
 
-use crate::costs::{MonsterData, STORE_TASK_TIME, UNSTORE_TASK_TIME};
+use crate::costs::{STORE_TASK_TIME, UNSTORE_TASK_TIME};
 
 #[derive(Display, PartialEq, Eq)]
 #[allow(dead_code)]
@@ -261,9 +261,12 @@ fn run_simulation<S: Strategy + Clone + Send>(start: SimulationStartPoint) {
     // }
     println!();
     println!("Total kills:");
-    for (monster, kills) in median_run.slayer_data.total_kills {
+    for (monster, kills) in median_run.slayer_data.total_kills.iter() {
         println!("{:16} {}", monster, kills);
     }
+
+    println!("Time budget breakdown:");
+    median_run.slayer_data.print_time_data();
 
     println!("Finished in {:.1}s", start_time.elapsed().as_secs_f32());
 
@@ -481,6 +484,7 @@ impl Strategy for SuperiorsStrategy {
                             Hobgoblins,
                             Kalphite,
                             MossGiants,
+                            OtherwordlyBeings,
                             Pyrefiends,
                             Shades,
                             Trolls,
@@ -702,18 +706,20 @@ impl SlayerData {
             total_time += master.travel_time() * *amount as u32;
         }
         for ((_master, monster), amount) in self.total_tasks_done.iter() {
-            let monster_data = monster.task_data().unwrap_or(MonsterData {
-                travel_steps: 100, // TODO: This is a completely made up and wrong average for Vannaka tasks
-                time_per_kill: Duration::from_millis(30_000),
-                ..Default::default()
+            let monster_data = monster.task_data().unwrap_or_else(|| {
+                panic!(
+                    "No task data for monster {}, needed for time calculation",
+                    monster
+                )
             });
             total_time += monster_data.travel_time() * *amount as u32;
         }
         for (monster, kills) in self.total_kills.iter() {
-            let monster_data = monster.task_data().unwrap_or(MonsterData {
-                travel_steps: 100, // TODO: This is a completely made up and wrong average for Vannaka tasks
-                time_per_kill: Duration::from_millis(30_000),
-                ..Default::default()
+            let monster_data = monster.task_data().unwrap_or_else(|| {
+                panic!(
+                    "No task data for monster {}, needed for time calculation",
+                    monster
+                )
             });
             total_time += monster_data.time_per_kill * *kills as u32;
         }
@@ -722,6 +728,56 @@ impl SlayerData {
 
         total_time += self.supplies_used.time_to_gather();
         total_time
+    }
+
+    pub fn print_time_data(&self) {
+        let mut slayer_master_travel: BTreeMap<SlayerMaster, Duration> = BTreeMap::new();
+        for ((master, _monster), amount) in self.total_tasks_started.iter() {
+            *slayer_master_travel.entry(*master).or_default() +=
+                master.travel_time() * *amount as u32;
+        }
+        println!("Slayer master travel time: ");
+        for (master, time) in slayer_master_travel {
+            println!("{:16} {:.1} hours", master, time.as_secs_f64() / 3600.0);
+        }
+        println!();
+
+        let mut slayer_monster_travel_time: BTreeMap<Monster, Duration> = BTreeMap::new();
+        for ((_master, monster), amount) in self.total_tasks_done.iter() {
+            let monster_data = monster.task_data().unwrap();
+            *slayer_monster_travel_time.entry(*monster).or_default() +=
+                monster_data.travel_time() * *amount as u32;
+        }
+        println!("Slayer monster travel time: ");
+        for (monster, time) in slayer_monster_travel_time {
+            println!("{:16} {:.1} hours", monster, time.as_secs_f64() / 3600.0);
+        }
+        println!();
+
+        let mut monster_kill_time: BTreeMap<Monster, Duration> = BTreeMap::new();
+        for (monster, kills) in self.total_kills.iter() {
+            let monster_data = monster.task_data().unwrap();
+            *monster_kill_time.entry(*monster).or_default() +=
+                monster_data.time_per_kill * *kills as u32;
+        }
+        println!("Slayer monster kill time: ");
+        for (monster, time) in monster_kill_time {
+            println!("{:16} {:.1} hours", monster, time.as_secs_f64() / 3600.0);
+        }
+        println!();
+
+        println!(
+            "Store/unstore task time: {:.1} hours",
+            (STORE_TASK_TIME * self.num_stored_tasks as u32
+                + UNSTORE_TASK_TIME * self.num_unstored_tasks as u32)
+                .as_secs_f32()
+                / 3600.0
+        );
+
+        println!(
+            "Supply gathering time: {:.1} hours",
+            self.supplies_used.time_to_gather().as_secs_f32() / 3600.0
+        );
     }
 }
 
@@ -914,10 +970,11 @@ impl SlayerState {
             .entry((master, monster))
             .or_default() += 1;
 
-        let task_data = monster.task_data().unwrap_or(MonsterData {
-            travel_steps: 100, // TODO: This is a completely made up and wrong average for Vannaka tasks
-            time_per_kill: Duration::from_millis(30_000),
-            ..Default::default()
+        let task_data = monster.task_data().unwrap_or_else(|| {
+            panic!(
+                "No task data for monster {}, needed for time calculation",
+                monster
+            )
         });
 
         self.slayer_data.supplies_used =
