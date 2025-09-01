@@ -89,7 +89,7 @@ fn run_simulation<S: Strategy + Clone + Send>(start: SimulationStartPoint) {
 
     for (slayer_state, player_state, success) in results {
         let slayer_data = slayer_state.slayer_data.clone();
-        let num_tasks = slayer_data.total_tasks_started.values().sum::<u64>();
+        let num_tasks = slayer_data.total_tasks_received.values().sum::<u64>();
         num_tasks_received += num_tasks;
         if success {
             num_successes += 1;
@@ -218,7 +218,7 @@ fn run_simulation<S: Strategy + Clone + Send>(start: SimulationStartPoint) {
         for monster in Monster::iter() {
             let tasks_received = median_run
                 .slayer_data
-                .total_tasks_started
+                .total_tasks_received
                 .get(&(master, monster))
                 .copied()
                 .unwrap_or(0);
@@ -230,7 +230,7 @@ fn run_simulation<S: Strategy + Clone + Send>(start: SimulationStartPoint) {
                 .unwrap_or(0);
             if tasks_received > 0 || tasks_done > 0 {
                 println!(
-                    "{:10} {:16} {:6} ({} received)",
+                    "{:10} {:17} {:6} ({} received)",
                     master, monster, tasks_done, tasks_received
                 );
             }
@@ -251,7 +251,7 @@ fn run_simulation<S: Strategy + Clone + Send>(start: SimulationStartPoint) {
     //             .sum::<u64>();
     //         if kills > 0 {
     //             println!(
-    //                 "{:10} {:16} {}",
+    //                 "{:10} {:17} {}",
     //                 master,
     //                 monster,
     //                 kills / all_successful_runs.len() as u64
@@ -262,7 +262,7 @@ fn run_simulation<S: Strategy + Clone + Send>(start: SimulationStartPoint) {
     println!();
     println!("Total kills:");
     for (monster, kills) in median_run.slayer_data.total_kills.iter() {
-        println!("{:16} {}", monster, kills);
+        println!("{:17} {}", monster, kills);
     }
 
     println!("Time budget breakdown:");
@@ -592,6 +592,7 @@ fn simulate_limpwurt<S: Strategy + Clone + Send>(
         task_state: start.task_state,
         stored_task: None,
         slayer_data: SlayerData::default(),
+        location: Location::SlayerMaster(Turael),
     };
 
     let mut rng = SmallRng::from_os_rng();
@@ -689,9 +690,10 @@ struct SlayerData {
     total_points: u64,
     min_points: u64,
     max_points: u64,
-    total_tasks_started: BTreeMap<(SlayerMaster, Monster), u64>,
+    total_tasks_received: BTreeMap<(SlayerMaster, Monster), u64>,
     total_tasks_done: BTreeMap<(SlayerMaster, Monster), u64>,
     total_kills: BTreeMap<Monster, u64>, // Tracks the number of actual kills, not the number assigned
+    slayer_master_travels: BTreeMap<SlayerMaster, u64>, // Only tracked for timekeeping
     num_stored_tasks: u64,               // Only tracked for timekeeping
     num_unstored_tasks: u64,             // Only tracked for timekeeping
     supplies_used: Supplies,
@@ -702,7 +704,7 @@ impl SlayerData {
     pub fn time_spent(&self) -> Duration {
         let mut total_time = Duration::ZERO;
 
-        for ((master, _monster), amount) in self.total_tasks_started.iter() {
+        for (master, amount) in self.slayer_master_travels.iter() {
             total_time += master.travel_time() * *amount as u32;
         }
         for ((_master, monster), amount) in self.total_tasks_done.iter() {
@@ -732,13 +734,14 @@ impl SlayerData {
 
     pub fn print_time_data(&self) {
         let mut slayer_master_travel: BTreeMap<SlayerMaster, Duration> = BTreeMap::new();
-        for ((master, _monster), amount) in self.total_tasks_started.iter() {
+        for (master, amount) in self.slayer_master_travels.iter() {
             *slayer_master_travel.entry(*master).or_default() +=
                 master.travel_time() * *amount as u32;
         }
+        println!();
         println!("Slayer master travel time: ");
         for (master, time) in slayer_master_travel {
-            println!("{:16} {:.1} hours", master, time.as_secs_f64() / 3600.0);
+            println!("{:17} {:5.1} hours", master, time.as_secs_f64() / 3600.0);
         }
         println!();
 
@@ -750,7 +753,7 @@ impl SlayerData {
         }
         println!("Slayer monster travel time: ");
         for (monster, time) in slayer_monster_travel_time {
-            println!("{:16} {:.1} hours", monster, time.as_secs_f64() / 3600.0);
+            println!("{:17} {:5.1} hours", monster, time.as_secs_f64() / 3600.0);
         }
         println!();
 
@@ -762,7 +765,7 @@ impl SlayerData {
         }
         println!("Slayer monster kill time: ");
         for (monster, time) in monster_kill_time {
-            println!("{:16} {:.1} hours", monster, time.as_secs_f64() / 3600.0);
+            println!("{:17} {:5.1} hours", monster, time.as_secs_f64() / 3600.0);
         }
         println!();
 
@@ -787,9 +790,10 @@ impl Default for SlayerData {
             total_points: 0,
             min_points: u64::MAX,
             max_points: u64::MIN,
-            total_tasks_started: BTreeMap::new(),
+            total_tasks_received: BTreeMap::new(),
             total_tasks_done: BTreeMap::new(),
             total_kills: BTreeMap::new(),
+            slayer_master_travels: BTreeMap::new(),
             num_stored_tasks: 0,
             num_unstored_tasks: 0,
             supplies_used: Supplies::default(),
@@ -853,6 +857,18 @@ impl ops::Add for SlayerDrops {
     }
 }
 
+#[derive(Clone, PartialEq, Eq)]
+enum Location {
+    SlayerMaster(SlayerMaster),
+    Monster(Monster),
+}
+
+impl Default for Location {
+    fn default() -> Self {
+        Location::SlayerMaster(Turael)
+    }
+}
+
 #[derive(Clone, Default)]
 struct SlayerState {
     points: u32,
@@ -860,6 +876,7 @@ struct SlayerState {
     task_state: TaskState,
     stored_task: Option<(Monster, SlayerMaster, u32)>,
     slayer_data: SlayerData,
+    location: Location,
 }
 
 impl SlayerState {
@@ -877,6 +894,19 @@ impl SlayerState {
             Vannaka => (),
             Chaeldar => assert!(player_state.quests_done.contains(&Quest::LostCity)),
         }
+
+        if self.location != Location::SlayerMaster(master) {
+            *self
+                .slayer_data
+                .slayer_master_travels
+                .entry(master)
+                .or_default() += 1;
+
+            self.slayer_data.supplies_used =
+                self.slayer_data.supplies_used.clone() + master.travel_cost();
+        }
+        self.location = Location::SlayerMaster(master);
+
         let last_task = match self.task_state {
             TaskState::Active((monster, _, _)) => {
                 // If this is a Turael skip, reset the task counter
@@ -925,10 +955,9 @@ impl SlayerState {
 
         *self
             .slayer_data
-            .total_tasks_started
+            .total_tasks_received
             .entry((master, task.monster))
             .or_default() += 1;
-        self.slayer_data.assignment_cost(master);
 
         self.task_state = TaskState::Active((task.monster, master, amount));
     }
@@ -969,6 +998,7 @@ impl SlayerState {
             .total_tasks_done
             .entry((master, monster))
             .or_default() += 1;
+        self.location = Location::Monster(monster);
 
         let task_data = monster.task_data().unwrap_or_else(|| {
             panic!(

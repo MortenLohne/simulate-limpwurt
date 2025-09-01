@@ -1,4 +1,6 @@
-use crate::{Monster, PlayerState, Quest, SlayerData, SlayerMaster, SlayerState, TaskState, data};
+use crate::{
+    Location, Monster, PlayerState, Quest, SlayerData, SlayerMaster, SlayerState, TaskState, data,
+};
 
 #[test]
 fn turael_total_weight_test() {
@@ -57,6 +59,7 @@ fn all_monster_are_assigned_test() {
         task_state: TaskState::Completed(Monster::Monkeys),
         stored_task: None,
         slayer_data: SlayerData::default(),
+        location: Location::SlayerMaster(SlayerMaster::Turael),
     };
 
     let mut rng = rand::rng();

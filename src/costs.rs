@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use crate::{Monster, SlayerData, SlayerMaster, Supplies};
+use crate::{Monster, SlayerMaster, Supplies};
 
 const GAME_TICK: Duration = Duration::from_millis(600);
 pub const STORE_TASK_TIME: Duration = Duration::from_secs(3);
@@ -15,7 +15,7 @@ impl Supplies {
         + Duration::from_secs(3) * self.necklace_of_passage_charges as u32 // 24 seconds per necklace, assuming spare jades from opal grind
         + Duration::from_millis(500) * self.chronicle_charges as u32
         + Duration::from_secs(2) * self.skull_sceptre_charges as u32 // 15 seconds per sceptre, TODO: Made up
-        + Duration::from_secs(3) * self.giantsoul_amulet_charges as u32 // Get big bones passively from giant tasks
+        + Duration::from_secs(8) * self.giantsoul_amulet_charges as u32 // Get big bones from hill giants, and other giants on-task
         + Duration::from_millis(500) * self.law_runes as u32
     }
 }
@@ -407,25 +407,6 @@ impl Monster {
     }
 }
 
-impl SlayerData {
-    pub fn assignment_cost(&mut self, master: SlayerMaster) {
-        match master {
-            SlayerMaster::Turael => {
-                self.supplies_used.games_necklace_charges += 1;
-            }
-            SlayerMaster::Spria => {
-                self.supplies_used.necklace_of_passage_charges += 1;
-            }
-            SlayerMaster::Vannaka => {
-                self.supplies_used.giantsoul_amulet_charges += 1;
-            }
-            SlayerMaster::Chaeldar => {
-                self.supplies_used.law_runes += 1;
-            }
-        }
-    }
-}
-
 impl SlayerMaster {
     pub fn travel_time(&self) -> Duration {
         match self {
@@ -433,6 +414,27 @@ impl SlayerMaster {
             SlayerMaster::Spria => Duration::from_secs(34),
             SlayerMaster::Vannaka => Duration::from_secs(32),
             SlayerMaster::Chaeldar => Duration::from_secs(49),
+        }
+    }
+
+    pub fn travel_cost(&self) -> Supplies {
+        match self {
+            SlayerMaster::Turael => Supplies {
+                games_necklace_charges: 1,
+                ..Default::default()
+            },
+            SlayerMaster::Spria => Supplies {
+                necklace_of_passage_charges: 1,
+                ..Default::default()
+            },
+            SlayerMaster::Vannaka => Supplies {
+                giantsoul_amulet_charges: 1,
+                ..Default::default()
+            },
+            SlayerMaster::Chaeldar => Supplies {
+                law_runes: 1,
+                ..Default::default()
+            },
         }
     }
 }
