@@ -238,7 +238,7 @@ impl Monster {
                     giantsoul_amulet_charges: 1,
                     ..Default::default()
                 },
-                use_expeditious_bracelet: true,
+                use_expeditious_bracelet: false, // Big bones are needed for giantsoul amulet charges
                 ..Default::default()
             }),
             Monster::Hobgoblins => Some(MonsterData {
@@ -343,8 +343,7 @@ impl Monster {
                 ..Default::default()
             }),
             Monster::Pyrefiends => Some(MonsterData {
-                // TODO: Completely guesstimated
-                travel_steps: 400,
+                travel_steps: 535,
                 time_per_kill: Duration::from_millis(15000),
                 superior_unique_drop_rate: Some(1.0 / 142.2),
                 use_bracelet_of_slaughter: true,
