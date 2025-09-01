@@ -273,7 +273,7 @@ pub fn run_superiors_simulation() {
         storage_unlocked: false,
     };
 
-    run_simulation::<MaximizeSuperiorsStrategy>(start);
+    run_simulation::<SuperiorsStrategy>(start);
 }
 
 pub fn run_slayer_start_simulation() {
@@ -384,10 +384,14 @@ impl Strategy for MinimizeSlayerLockStrategy {
     }
 }
 
-#[derive(Default, Clone)]
-struct MaximizeSuperiorsStrategy {}
+#[derive(Default, Clone, PartialEq, Eq)]
+enum SuperiorsStrategy {
+    #[default]
+    AccumulatePoints,
+    GetSuperiors,
+}
 
-impl Strategy for MaximizeSuperiorsStrategy {
+impl Strategy for SuperiorsStrategy {
     fn should_terminate(
         &mut self,
         slayer_state: &SlayerState,
@@ -421,24 +425,68 @@ impl Strategy for MaximizeSuperiorsStrategy {
         slayer_state: &SlayerState,
         player_state: &PlayerState,
     ) -> SimulationAction {
+        use Monster::*;
         if !player_state.storage_unlocked {
             if slayer_state.points >= 620 {
                 return SimulationAction::UnlockTaskStorage;
             }
             return MinimizeSlayerLockStrategy::default().select_action(slayer_state, player_state);
         }
-        match slayer_state.task_state {
-            TaskState::Active((monster, master, _)) => {
+        if *self == SuperiorsStrategy::AccumulatePoints && slayer_state.points > 1000 {
+            *self = SuperiorsStrategy::GetSuperiors;
+        } else if *self == SuperiorsStrategy::GetSuperiors && slayer_state.points < 500 {
+            *self = SuperiorsStrategy::AccumulatePoints;
+        }
+        match (slayer_state.task_state, self.clone()) {
+            (TaskState::Active((monster, master, _)), SuperiorsStrategy::AccumulatePoints) => {
                 if monster.can_limpwurt_kill() {
-                    // Turael-skip Vannaka tasks that aren't pyrefiends
-                    if master == Vannaka && monster != Monster::Pyrefiends {
-                        if !Turael.can_assign(monster) {
-                            SimulationAction::NewAssignment(Turael)
-                        // Some tasks (kalphites) cannot be turael skipped, consider point-skipping them
-                        } else if slayer_state.points >= 500 {
+                    // Turael-skip Vannaka tasks that are too slow
+                    if master == Vannaka {
+                        if [
+                            Ankous,
+                            Crocodiles,
+                            IceGiants,
+                            IceWarriors,
+                            HillGiants,
+                            Hobgoblins,
+                            Kalphite,
+                            MossGiants,
+                            Pyrefiends,
+                            Trolls,
+                        ]
+                        .contains(&monster)
+                        {
+                            SimulationAction::CompleteTask
+                        } else if slayer_state.points >= 120 {
                             SimulationAction::PointSkip
                         } else {
+                            SimulationAction::NewAssignment(Turael)
+                        }
+                    } else {
+                        SimulationAction::CompleteTask
+                    }
+                } else if Turael.can_assign(monster) {
+                    if slayer_state.stored_task.is_none() {
+                        SimulationAction::StoreTask
+                    } else if slayer_state.points >= 30 {
+                        SimulationAction::PointSkip
+                    } else {
+                        panic!("Ran out of slayer points, simulation should have stopped already");
+                    }
+                } else if slayer_state.points > 120 {
+                    SimulationAction::PointSkip
+                } else {
+                    SimulationAction::NewAssignment(Turael)
+                }
+            }
+            (TaskState::Active((monster, master, _)), SuperiorsStrategy::GetSuperiors) => {
+                if monster.can_limpwurt_kill() {
+                    // Turael-skip Vannaka tasks that are too slow
+                    if master == Vannaka {
+                        if [Kalphite, Pyrefiends].contains(&monster) {
                             SimulationAction::CompleteTask
+                        } else {
+                            SimulationAction::NewAssignment(Turael)
                         }
                     } else {
                         SimulationAction::CompleteTask
@@ -455,7 +503,8 @@ impl Strategy for MaximizeSuperiorsStrategy {
                     SimulationAction::NewAssignment(Turael)
                 }
             }
-            TaskState::Completed(last_monster) => {
+            (TaskState::Completed(last_monster), SuperiorsStrategy::AccumulatePoints) => {
+                // Only do Vannaka tasks every 10 task
                 let streak_after_next_task = slayer_state.task_streak + 1;
                 let next_slayer_master = if streak_after_next_task % 10 == 0 {
                     Vannaka
@@ -474,6 +523,20 @@ impl Strategy for MaximizeSuperiorsStrategy {
                     SimulationAction::UnstoreTask
                 } else {
                     SimulationAction::NewAssignment(next_slayer_master)
+                }
+            }
+            (TaskState::Completed(last_monster), SuperiorsStrategy::GetSuperiors) => {
+                // We don't want to have a task we can as our "last task", because it cannot be assigned again immediately
+                // We'd rather unstore a bad task, so that can re-store it, and not be assigned it this time
+                if last_monster.can_limpwurt_kill()
+                    && Vannaka.can_assign(last_monster)
+                    && let Some((stored_monster, _, _)) = slayer_state.stored_task
+                    && !stored_monster.can_limpwurt_kill()
+                    && Vannaka.can_assign(stored_monster)
+                {
+                    SimulationAction::UnstoreTask
+                } else {
+                    SimulationAction::NewAssignment(Vannaka)
                 }
             }
         }
