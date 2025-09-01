@@ -69,7 +69,7 @@ where
     F2: Fn(&SlayerState, &PlayerState) -> Option<bool> + Sync,
 {
     let start_time = time::Instant::now();
-    let n = 10_000;
+    let n = 100_000;
 
     let results: Vec<_> = (0..n)
         .into_par_iter()
@@ -633,6 +633,7 @@ struct Supplies {
     necklace_of_passage_charges: u64,
     chronicle_charges: u64,
     skull_sceptre_charges: u64,
+    giantsoul_amulet_charges: u64,
     law_runes: u64,
 }
 
@@ -651,6 +652,7 @@ impl ops::Add for Supplies {
                 + rhs.necklace_of_passage_charges,
             chronicle_charges: self.chronicle_charges + rhs.chronicle_charges,
             skull_sceptre_charges: self.skull_sceptre_charges + rhs.skull_sceptre_charges,
+            giantsoul_amulet_charges: self.giantsoul_amulet_charges + rhs.giantsoul_amulet_charges,
             law_runes: self.law_runes + rhs.law_runes,
         }
     }

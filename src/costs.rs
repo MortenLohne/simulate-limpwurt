@@ -15,6 +15,7 @@ impl Supplies {
         + Duration::from_secs(3) * self.necklace_of_passage_charges as u32 // 24 seconds per necklace, assuming spare jades from opal grind
         + Duration::from_millis(500) * self.chronicle_charges as u32
         + Duration::from_secs(2) * self.skull_sceptre_charges as u32 // 15 seconds per sceptre, TODO: Made up
+        + Duration::from_secs(3) * self.giantsoul_amulet_charges as u32 // Get big bones passively from giant tasks
         + Duration::from_millis(500) * self.law_runes as u32
     }
 }
@@ -40,7 +41,16 @@ impl Monster {
         match self {
             Monster::AberrantSpectres => None,
             Monster::AbyssalDemons => None,
-            Monster::Ankous => None,
+            Monster::Ankous => Some(MonsterData {
+                travel_steps: 80,
+                time_per_kill: Duration::from_millis(13200),
+                travel_supplies: Supplies {
+                    skull_sceptre_charges: 1,
+                    ..Default::default()
+                },
+                use_expeditious_bracelet: true,
+                ..Default::default()
+            }),
             Monster::Aviansie => None,
             Monster::Banshees => None,
             Monster::Basilisks => None,
@@ -120,7 +130,12 @@ impl Monster {
             }),
             Monster::Crabs => None,
             Monster::CrawlingHands => None,
-            Monster::Crocodiles => None,
+            Monster::Crocodiles => Some(MonsterData {
+                travel_steps: 103,
+                time_per_kill: Duration::from_millis(17100),
+                use_expeditious_bracelet: true,
+                ..Default::default()
+            }),
             Monster::CustodianStalker => None,
             Monster::Dagannoth => None,
             Monster::DustDevils => None,
@@ -142,7 +157,12 @@ impl Monster {
             }),
             Monster::Elves => None,
             Monster::FeverSpiders => None,
-            Monster::FireGiants => None,
+            Monster::FireGiants => Some(MonsterData {
+                travel_steps: 0,
+                time_per_kill: Duration::from_millis(480_000),
+                use_expeditious_bracelet: true,
+                ..Default::default()
+            }),
             Monster::FossilIslandWyverns => None,
             Monster::Gargoyles => None,
             Monster::Ghosts => Some(MonsterData {
@@ -168,8 +188,26 @@ impl Monster {
             Monster::GreaterDemons => None,
             Monster::HarpieBugSwarms => None,
             Monster::Hellhounds => None,
-            Monster::HillGiants => None,
-            Monster::Hobgoblins => None,
+            Monster::HillGiants => Some(MonsterData {
+                travel_steps: 5,
+                time_per_kill: Duration::from_millis(7800),
+                travel_supplies: Supplies {
+                    giantsoul_amulet_charges: 1,
+                    ..Default::default()
+                },
+                use_expeditious_bracelet: true,
+                ..Default::default()
+            }),
+            Monster::Hobgoblins => Some(MonsterData {
+                travel_steps: 89,
+                time_per_kill: Duration::from_millis(11_000),
+                travel_supplies: Supplies {
+                    giantsoul_amulet_charges: 1,
+                    ..Default::default()
+                },
+                use_expeditious_bracelet: true,
+                ..Default::default()
+            }),
             Monster::Icefiends => Some(MonsterData {
                 travel_steps: 140,
                 time_per_kill: Duration::from_millis(5500),
@@ -179,8 +217,26 @@ impl Monster {
                 },
                 ..Default::default()
             }),
-            Monster::IceGiants => None,
-            Monster::IceWarriors => None,
+            Monster::IceGiants => Some(MonsterData {
+                travel_steps: 10,
+                time_per_kill: Duration::from_millis(11_200),
+                travel_supplies: Supplies {
+                    giantsoul_amulet_charges: 1,
+                    ..Default::default()
+                },
+                use_expeditious_bracelet: true,
+                ..Default::default()
+            }),
+            Monster::IceWarriors => Some(MonsterData {
+                travel_steps: 136,
+                time_per_kill: Duration::from_millis(10_000),
+                travel_supplies: Supplies {
+                    giantsoul_amulet_charges: 1,
+                    ..Default::default()
+                },
+                use_expeditious_bracelet: true,
+                ..Default::default()
+            }),
             Monster::InfernalMages => None,
             Monster::Jellies => None,
             Monster::JungleHorrors => None,
@@ -211,7 +267,16 @@ impl Monster {
             Monster::Mogres => None,
             Monster::Molanisks => None,
             Monster::Monkeys => None,
-            Monster::MossGiants => None,
+            Monster::MossGiants => Some(MonsterData {
+                travel_steps: 22,
+                time_per_kill: Duration::from_millis(12_600),
+                travel_supplies: Supplies {
+                    giantsoul_amulet_charges: 1,
+                    ..Default::default()
+                },
+                use_expeditious_bracelet: true,
+                ..Default::default()
+            }),
             Monster::MutatedZygomites => None,
             Monster::Nechryael => None,
             Monster::Ogres => None,
@@ -243,7 +308,16 @@ impl Monster {
                 ..Default::default()
             }),
             Monster::SeaSnakes => None,
-            Monster::Shades => None,
+            Monster::Shades => Some(MonsterData {
+                travel_steps: 70,
+                time_per_kill: Duration::from_millis(40_200),
+                travel_supplies: Supplies {
+                    skull_sceptre_charges: 1,
+                    ..Default::default()
+                },
+                use_expeditious_bracelet: true,
+                ..Default::default()
+            }),
             Monster::ShadowWarriors => None,
             Monster::SkeletalWyverns => None,
             Monster::Skeletons => Some(MonsterData {
@@ -276,7 +350,16 @@ impl Monster {
             }),
             Monster::SpiritualCreatures => None,
             Monster::TerrorDogs => None,
-            Monster::Trolls => None,
+            Monster::Trolls => Some(MonsterData {
+                travel_steps: 74,
+                time_per_kill: Duration::from_millis(24_000),
+                travel_supplies: Supplies {
+                    games_necklace_charges: 1,
+                    ..Default::default()
+                },
+                use_expeditious_bracelet: true,
+                ..Default::default()
+            }),
             Monster::Turoth => None,
             Monster::TzHaar => None,
             Monster::Vampyres => None,

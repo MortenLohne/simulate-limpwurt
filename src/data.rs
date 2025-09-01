@@ -102,7 +102,7 @@ impl Monster {
             Spiders => true,
             SpiritualCreatures => WORLD_STATE != WorldState::Limp2024,
             TerrorDogs => false,
-            Trolls => false,
+            Trolls => WORLD_STATE != WorldState::Limp2024,
             Turoth => false,
             TzHaar => false,
             Vampyres => false,
