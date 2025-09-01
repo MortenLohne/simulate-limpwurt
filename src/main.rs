@@ -482,6 +482,7 @@ impl Strategy for SuperiorsStrategy {
                             Kalphite,
                             MossGiants,
                             Pyrefiends,
+                            Shades,
                             Trolls,
                         ]
                         .contains(&monster)
