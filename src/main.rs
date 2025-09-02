@@ -462,14 +462,6 @@ impl Strategy for SuperiorsStrategy {
             }
             return MinimizeSlayerLockStrategy::default().select_action(slayer_state, player_state);
         }
-        if *self == SuperiorsStrategy::AccumulatePoints
-            && slayer_state.points > 1000
-            && slayer_state.task_streak % 1000 < 20
-        {
-            *self = SuperiorsStrategy::GetSuperiors;
-        } else if *self == SuperiorsStrategy::GetSuperiors && slayer_state.points < 500 {
-            *self = SuperiorsStrategy::AccumulatePoints;
-        }
         match (slayer_state.task_state, self.clone()) {
             (TaskState::Active((monster, master, _)), SuperiorsStrategy::AccumulatePoints) => {
                 if monster.can_limpwurt_kill() {
@@ -520,6 +512,8 @@ impl Strategy for SuperiorsStrategy {
                     if master == Vannaka {
                         if [Kalphite, Pyrefiends].contains(&monster) {
                             SimulationAction::CompleteTask
+                        } else if slayer_state.stored_task.is_none() {
+                            SimulationAction::StoreTask
                         } else {
                             SimulationAction::NewAssignment(Turael)
                         }
@@ -527,18 +521,27 @@ impl Strategy for SuperiorsStrategy {
                         SimulationAction::CompleteTask
                     }
                 } else if Turael.can_assign(monster) {
-                    if slayer_state.stored_task.is_none() {
-                        SimulationAction::StoreTask
-                    } else if slayer_state.points >= 30 {
-                        SimulationAction::PointSkip
-                    } else {
-                        panic!("Ran out of slayer points, simulation should have stopped already");
-                    }
+                    assert!(
+                        slayer_state.points >= 30,
+                        "Ran out of slayer points, simulation should have stopped already"
+                    );
+                    SimulationAction::PointSkip
                 } else {
                     SimulationAction::NewAssignment(Turael)
                 }
             }
             (TaskState::Completed(last_monster), SuperiorsStrategy::AccumulatePoints) => {
+                // Check if we should switch to a superior strategy
+                // If so, unstore the monkeys task, so that it can be replaced with a bad Vannaka task
+                if slayer_state.points > 1000 && slayer_state.task_streak % 1000 < 20 {
+                    *self = SuperiorsStrategy::GetSuperiors;
+                    assert!(
+                        matches!(slayer_state.stored_task, Some((Monkeys, Turael, _))),
+                        "Expected monkeys task to be stored, found {:?}",
+                        slayer_state.stored_task
+                    );
+                    return SimulationAction::UnstoreTask;
+                }
                 // Only do Vannaka tasks every 10 task
                 let streak_after_next_task = slayer_state.task_streak + 1;
                 let next_slayer_master = if streak_after_next_task % 10 == 0 {
@@ -561,12 +564,20 @@ impl Strategy for SuperiorsStrategy {
                 }
             }
             (TaskState::Completed(last_monster), SuperiorsStrategy::GetSuperiors) => {
-                // We don't want to have a task we can as our "last task", because it cannot be assigned again immediately
+                // Check if we should switch back to accumulating points
+                // If so, unstore the bad Vannaka task, so that it can replaced with a Monkeys task
+                if slayer_state.points < 500 {
+                    *self = SuperiorsStrategy::AccumulatePoints;
+                    assert!(matches!(slayer_state.stored_task, Some((_, Vannaka, _))));
+                    return SimulationAction::UnstoreTask;
+                }
+
+                // We want to have a bad Vannaka task as our "last task", because it cannot be assigned again immediately
                 // We'd rather unstore a bad task, so that can re-store it, and not be assigned it this time
-                if last_monster.can_limpwurt_kill()
-                    && Vannaka.can_assign(last_monster)
+                if (!Vannaka.can_assign(last_monster)
+                    || [Kalphite, Pyrefiends].contains(&last_monster))
                     && let Some((stored_monster, _, _)) = slayer_state.stored_task
-                    && !stored_monster.can_limpwurt_kill()
+                    && ![Kalphite, Pyrefiends].contains(&stored_monster)
                     && Vannaka.can_assign(stored_monster)
                 {
                     SimulationAction::UnstoreTask
@@ -623,7 +634,7 @@ fn simulate_limpwurt<S: Strategy + Clone + Send>(
     }
 }
 
-#[derive(EnumIter, Display, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
+#[derive(EnumIter, Display, Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
 #[allow(dead_code)]
 enum SlayerMaster {
     Turael,
