@@ -609,7 +609,7 @@ pub const VANNAKA_ASSIGNMENTS: &[Assignment] = &[
         monster: Monster::Ankous,
         amount: 25..=35,
         quest_requirement: None,
-        weight: 7,
+        weight: 8,
     },
     Assignment {
         monster: Monster::Basilisks,
