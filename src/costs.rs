@@ -80,6 +80,13 @@ impl MonsterData {
 }
 
 impl Monster {
+    pub fn has_superior(&self) -> bool {
+        self.task_data()
+            .unwrap()
+            .superior_unique_drop_rate
+            .is_some()
+    }
+
     pub fn task_data(&self) -> Option<MonsterData> {
         match self {
             Monster::AberrantSpectres => None,

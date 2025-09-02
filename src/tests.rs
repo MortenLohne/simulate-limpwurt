@@ -15,11 +15,11 @@ fn turael_total_weight_test() {
 #[test]
 fn vannaka_total_weight_test() {
     let total_weight: u32 = data::VANNAKA_ASSIGNMENTS.iter().map(|a| a.weight).sum();
-    assert_eq!(total_weight, 322);
+    assert_eq!(total_weight, 323);
 
     let player_state = PlayerState::new(1_308_538, vec![Quest::LostCity], false);
     let player_total_weight = total_weight_prop(&player_state, SlayerMaster::Vannaka);
-    assert_eq!(player_total_weight, 169);
+    assert_eq!(player_total_weight, 170);
 }
 
 #[test]

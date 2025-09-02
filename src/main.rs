@@ -510,10 +510,14 @@ impl Strategy for SuperiorsStrategy {
                 if monster.can_limpwurt_kill() {
                     // Turael-skip Vannaka tasks that are too slow
                     if master == Vannaka {
-                        if [Kalphite, Pyrefiends].contains(&monster) {
+                        if monster.has_superior() {
                             SimulationAction::CompleteTask
-                        } else if slayer_state.stored_task.is_none() {
-                            SimulationAction::StoreTask
+                        } else if Turael.can_assign(monster) {
+                            if slayer_state.stored_task.is_none() {
+                                SimulationAction::StoreTask
+                            } else {
+                                SimulationAction::CompleteTask
+                            }
                         } else {
                             SimulationAction::NewAssignment(Turael)
                         }
@@ -572,12 +576,11 @@ impl Strategy for SuperiorsStrategy {
                     return SimulationAction::UnstoreTask;
                 }
 
-                // We want to have a bad Vannaka task as our "last task", because it cannot be assigned again immediately
-                // We'd rather unstore a bad task, so that can re-store it, and not be assigned it this time
-                if (!Vannaka.can_assign(last_monster)
-                    || [Kalphite, Pyrefiends].contains(&last_monster))
+                // We want to have a Kalphite task as our "last task", because it then cannot be assigned again immediately
+                // Kalphites are uniquely bad, since they cannot be Turael-skipped
+                if (!Vannaka.can_assign(last_monster) || last_monster.has_superior())
                     && let Some((stored_monster, _, _)) = slayer_state.stored_task
-                    && ![Kalphite, Pyrefiends].contains(&stored_monster)
+                    && !stored_monster.has_superior()
                     && Vannaka.can_assign(stored_monster)
                 {
                     SimulationAction::UnstoreTask
