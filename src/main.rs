@@ -85,7 +85,6 @@ fn run_simulation<S: Strategy + Clone + Send>(start: SimulationStartPoint) {
     let mut max_points_locked = 0;
     let mut all_drops = SlayerDrops::default();
     let mut all_supplies = Supplies::default();
-    let mut cave_crawlers_killed = 0;
 
     for (slayer_state, player_state, success) in results {
         let slayer_data = slayer_state.slayer_data.clone();
@@ -104,10 +103,6 @@ fn run_simulation<S: Strategy + Clone + Send>(start: SimulationStartPoint) {
         }
         all_drops = all_drops + slayer_data.drops;
         all_supplies = all_supplies + slayer_data.supplies_used;
-        cave_crawlers_killed += slayer_data
-            .total_kills
-            .get(&Monster::CaveCrawlers)
-            .unwrap_or(&0);
     }
     num_tasks_per_failed_run.sort();
     num_tasks_per_successful_run.sort();
@@ -140,10 +135,7 @@ fn run_simulation<S: Strategy + Clone + Send>(start: SimulationStartPoint) {
         .map(|(run, _)| run.slayer_data.time_spent().as_secs_f32() / 3600.0)
         .sum::<f32>();
 
-    println!(
-        "All drops {:?}, {} cave crawlers killed",
-        all_drops, cave_crawlers_killed
-    );
+    println!("All drops {:?}", all_drops);
 
     println!(
         "Number of successes: {}, {:.3}%, {:.1} tasks received on average, {} tasks median on success, {} tasks median on failure",
@@ -260,21 +252,26 @@ fn run_simulation<S: Strategy + Clone + Send>(start: SimulationStartPoint) {
     //     }
     // }
     println!();
-    println!("Total kills:");
-    for (monster, kills) in median_run.slayer_data.total_kills.iter() {
-        println!("{:17} {}", monster, kills);
+    println!("Total kills per slayer master:");
+    for ((master, monster), kills) in median_run.slayer_data.total_kills.iter() {
+        println!("{:10} {:17} {}", master, monster, kills);
     }
 
     println!("Time budget breakdown:");
+    println!();
     median_run.slayer_data.print_time_data();
+
+    println!("Shortened time budget breakdown:");
+    println!();
+    median_run.slayer_data.print_time_data_short();
 
     println!("Finished in {:.1}s", start_time.elapsed().as_secs_f32());
 
-    // let mut buckets: BTreeMap<u32, u32> = (0..=600).map(|x| (x, 0)).collect::<BTreeMap<_, _>>();
+    // let mut buckets: BTreeMap<u32, u32> = (0..=500).map(|x| (x, 0)).collect::<BTreeMap<_, _>>();
     // for (run, _) in all_successful_runs.iter() {
     //     // Bucket is the total time, measured is hundreds of hours;
     //     let bucket = (run.slayer_data.time_spent().as_secs_f32() / (3600.0 * 100.0)) as u32;
-    //     *buckets.get_mut(&bucket.min(600)).unwrap() += 1;
+    //     *buckets.get_mut(&bucket.min(500)).unwrap() += 1;
     // }
 
     // for (points, count) in buckets {
@@ -706,10 +703,10 @@ struct SlayerData {
     max_points: u64,
     total_tasks_received: BTreeMap<(SlayerMaster, Monster), u64>,
     total_tasks_done: BTreeMap<(SlayerMaster, Monster), u64>,
-    total_kills: BTreeMap<Monster, u64>, // Tracks the number of actual kills, not the number assigned
-    slayer_master_travels: BTreeMap<SlayerMaster, u64>, // Only tracked for timekeeping
-    num_stored_tasks: u64,               // Only tracked for timekeeping
-    num_unstored_tasks: u64,             // Only tracked for timekeeping
+    total_kills: BTreeMap<(SlayerMaster, Monster), u64>, // Tracks the number of actual kills, not the number assigned
+    slayer_master_travels: BTreeMap<SlayerMaster, u64>,  // Only tracked for timekeeping
+    num_stored_tasks: u64,                               // Only tracked for timekeeping
+    num_unstored_tasks: u64,                             // Only tracked for timekeeping
     supplies_used: Supplies,
     drops: SlayerDrops,
 }
@@ -730,7 +727,7 @@ impl SlayerData {
             });
             total_time += monster_data.travel_time() * *amount as u32;
         }
-        for (monster, kills) in self.total_kills.iter() {
+        for ((_, monster), kills) in self.total_kills.iter() {
             let monster_data = monster.task_data().unwrap_or_else(|| {
                 panic!(
                     "No task data for monster {}, needed for time calculation",
@@ -752,7 +749,6 @@ impl SlayerData {
             *slayer_master_travel.entry(*master).or_default() +=
                 master.travel_time() * *amount as u32;
         }
-        println!();
         println!("Slayer master travel time: ");
         for (master, time) in slayer_master_travel {
             println!("{:17} {:5.1} hours", master, time.as_secs_f64() / 3600.0);
@@ -772,7 +768,7 @@ impl SlayerData {
         println!();
 
         let mut monster_kill_time: BTreeMap<Monster, Duration> = BTreeMap::new();
-        for (monster, kills) in self.total_kills.iter() {
+        for ((_, monster), kills) in self.total_kills.iter() {
             let monster_data = monster.task_data().unwrap();
             *monster_kill_time.entry(*monster).or_default() +=
                 monster_data.time_per_kill * *kills as u32;
@@ -795,7 +791,59 @@ impl SlayerData {
         self.supplies_used.print_time_breakdown();
 
         println!(
-            "Total gathering time: {:.1} hours",
+            "Total supplies gathering time: {:.1} hours",
+            self.supplies_used.time_to_gather().as_secs_f32() / 3600.0
+        );
+    }
+
+    pub fn print_time_data_short(&self) {
+        println!("Slayer master travel time: ");
+
+        for (master, amount) in self.slayer_master_travels.iter() {
+            println!(
+                "{:17} {:5.1} hours",
+                master,
+                (master.travel_time() * *amount as u32).as_secs_f64() / 3600.0
+            );
+        }
+        println!();
+
+        let mut slayer_monster_travel_time: BTreeMap<SlayerMaster, Duration> = BTreeMap::new();
+        for ((master, monster), amount) in self.total_tasks_done.iter() {
+            let monster_data = monster.task_data().unwrap();
+            *slayer_monster_travel_time.entry(*master).or_default() +=
+                monster_data.travel_time() * *amount as u32;
+        }
+        println!("Slayer task travel time: ");
+        for (monster, time) in slayer_monster_travel_time {
+            println!("{:17} {:5.1} hours", monster, time.as_secs_f64() / 3600.0);
+        }
+        println!();
+
+        let mut monster_kill_time: BTreeMap<SlayerMaster, Duration> = BTreeMap::new();
+        for ((master, monster), kills) in self.total_kills.iter() {
+            let monster_data = monster.task_data().unwrap();
+            *monster_kill_time.entry(*master).or_default() +=
+                monster_data.time_per_kill * *kills as u32;
+        }
+        println!("Slayer task kill time: ");
+        for (master, time) in monster_kill_time {
+            println!("{:10} {:5.1} hours", master, time.as_secs_f64() / 3600.0);
+        }
+        println!();
+
+        println!(
+            "Store/unstore task time: {:.1} hours",
+            (STORE_TASK_TIME * self.num_stored_tasks as u32
+                + UNSTORE_TASK_TIME * self.num_unstored_tasks as u32)
+                .as_secs_f32()
+                / 3600.0
+        );
+
+        println!();
+
+        println!(
+            "Total supplies gathering time: {:.1} hours",
             self.supplies_used.time_to_gather().as_secs_f32() / 3600.0
         );
     }
@@ -1036,7 +1084,11 @@ impl SlayerState {
         {
             let mut kills_left: u32 = amount;
             while kills_left > 0 {
-                *self.slayer_data.total_kills.entry(monster).or_default() += 1;
+                *self
+                    .slayer_data
+                    .total_kills
+                    .entry((master, monster))
+                    .or_default() += 1;
                 player_state.slayer_exp += monster.slayer_exp();
 
                 if task_data.use_bracelet_of_slaughter && rng.random::<f32>() < 0.25 {
@@ -1072,7 +1124,11 @@ impl SlayerState {
                 kills_left = kills_left.saturating_sub(1);
             }
         } else {
-            *self.slayer_data.total_kills.entry(monster).or_default() += amount as u64;
+            *self
+                .slayer_data
+                .total_kills
+                .entry((master, monster))
+                .or_default() += amount as u64;
             player_state.slayer_exp += monster.slayer_exp() * amount;
         }
         player_state.slayer_level = data::level_for_exp(player_state.slayer_exp);
