@@ -41,6 +41,8 @@ pub struct Args {
     /// Print numbers for the probability density function for time taken
     #[arg(long)]
     print_density_function: bool,
+    #[arg(short, long, default_value_t = 10000)]
+    num_simulations: u64,
 }
 
 fn main() {
@@ -82,9 +84,8 @@ fn main() {
 
 fn run_simulation<S: Strategy + Clone + Send>(start: SimulationStartPoint, args: Args) {
     let start_time = time::Instant::now();
-    let n = 10_000;
 
-    let results: Vec<_> = (0..n)
+    let results: Vec<_> = (0..args.num_simulations)
         .into_par_iter()
         .map(|_| simulate_limpwurt(start.clone(), S::default()))
         .collect();
@@ -157,8 +158,8 @@ fn run_simulation<S: Strategy + Clone + Send>(start: SimulationStartPoint, args:
     println!(
         "Number of successes: {}, {:.3}%, {:.1} tasks received on average, {} tasks median on success, {} tasks median on failure",
         num_successes,
-        100.0 * num_successes as f32 / n as f32,
-        num_tasks_received as f32 / n as f32,
+        100.0 * num_successes as f32 / args.num_simulations as f32,
+        num_tasks_received as f32 / args.num_simulations as f32,
         median_successful_tasks,
         median_failed_tasks
     );
