@@ -98,6 +98,8 @@ fn run_simulation<S: Strategy + Clone + Send>(start: SimulationStartPoint, args:
     let mut total_points_per_successful_run = vec![];
     let mut end_points_per_successful_run = vec![];
 
+    let mut total_exp_failed_runs = 0;
+
     let mut all_successful_runs = vec![];
 
     let mut max_points_locked = 0;
@@ -116,12 +118,24 @@ fn run_simulation<S: Strategy + Clone + Send>(start: SimulationStartPoint, args:
             end_points_per_successful_run.push(slayer_state.points as u64);
             all_successful_runs.push((slayer_state.clone(), player_state.clone()));
         } else {
+            total_exp_failed_runs += (player_state.slayer_exp - start.slayer_exp) as u64;
+
             max_points_locked = max_points_locked.max(slayer_data.max_points);
             num_tasks_per_failed_run.push(num_tasks);
         }
         all_drops = all_drops + slayer_data.drops;
         all_supplies = all_supplies + slayer_data.supplies_used;
     }
+
+    let num_failures = args.num_simulations - num_successes;
+    if num_failures > 0 {
+        println!(
+            "Average exp on {} failures: {}",
+            num_failures,
+            total_exp_failed_runs / num_failures,
+        );
+    }
+
     num_tasks_per_failed_run.sort();
     num_tasks_per_successful_run.sort();
     min_points_per_successful_run.sort();
