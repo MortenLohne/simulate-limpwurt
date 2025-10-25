@@ -6,6 +6,7 @@ use std::{
 };
 
 use SlayerMaster::*;
+use clap::Parser;
 
 mod costs;
 mod data;
@@ -28,7 +29,23 @@ enum WorldState {
 
 const WORLD_STATE: WorldState = WorldState::Limp2026;
 
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+pub struct Args {
+    /// Print total tasks done per monster, per slayer master
+    #[arg(long)]
+    print_total_tasks: bool,
+    /// Print total kills per monster, per slayer master
+    #[arg(long)]
+    print_total_kills: bool,
+    /// Print numbers for the probability density function for time taken
+    #[arg(long)]
+    print_density_function: bool,
+}
+
 fn main() {
+    let args = Args::parse();
+
     let _start = match WORLD_STATE {
         WorldState::Limp2024 => SimulationStartPoint {
             slayer_exp: 168_538,
@@ -60,10 +77,10 @@ fn main() {
         },
     };
     // run_slayer_start_simulation();
-    run_superiors_simulation();
+    run_superiors_simulation(args);
 }
 
-fn run_simulation<S: Strategy + Clone + Send>(start: SimulationStartPoint) {
+fn run_simulation<S: Strategy + Clone + Send>(start: SimulationStartPoint, args: Args) {
     let start_time = time::Instant::now();
     let n = 10_000;
 
@@ -204,27 +221,29 @@ fn run_simulation<S: Strategy + Clone + Send>(start: SimulationStartPoint) {
             / 3600.0,
         median_run.slayer_data.time_spent().as_secs_f32() / 3600.0
     );
-    println!();
-    println!("Total tasks done per slayer master:");
-    for master in SlayerMaster::iter() {
-        for monster in Monster::iter() {
-            let tasks_received = median_run
-                .slayer_data
-                .total_tasks_received
-                .get(&(master, monster))
-                .copied()
-                .unwrap_or(0);
-            let tasks_done = median_run
-                .slayer_data
-                .total_tasks_done
-                .get(&(master, monster))
-                .copied()
-                .unwrap_or(0);
-            if tasks_received > 0 || tasks_done > 0 {
-                println!(
-                    "{:10} {:17} {:6} ({} received)",
-                    master, monster, tasks_done, tasks_received
-                );
+    if args.print_total_tasks {
+        println!();
+        println!("Total tasks done per slayer master:");
+        for master in SlayerMaster::iter() {
+            for monster in Monster::iter() {
+                let tasks_received = median_run
+                    .slayer_data
+                    .total_tasks_received
+                    .get(&(master, monster))
+                    .copied()
+                    .unwrap_or(0);
+                let tasks_done = median_run
+                    .slayer_data
+                    .total_tasks_done
+                    .get(&(master, monster))
+                    .copied()
+                    .unwrap_or(0);
+                if tasks_received > 0 || tasks_done > 0 {
+                    println!(
+                        "{:10} {:17} {:6} ({} received)",
+                        master, monster, tasks_done, tasks_received
+                    );
+                }
             }
         }
     }
@@ -251,10 +270,12 @@ fn run_simulation<S: Strategy + Clone + Send>(start: SimulationStartPoint) {
     //         }
     //     }
     // }
-    println!();
-    println!("Total kills per slayer master:");
-    for ((master, monster), kills) in median_run.slayer_data.total_kills.iter() {
-        println!("{:10} {:17} {}", master, monster, kills);
+    if args.print_total_kills {
+        println!();
+        println!("Total kills per slayer master:");
+        for ((master, monster), kills) in median_run.slayer_data.total_kills.iter() {
+            println!("{:10} {:17} {}", master, monster, kills);
+        }
     }
 
     println!("Time budget breakdown:");
@@ -267,19 +288,21 @@ fn run_simulation<S: Strategy + Clone + Send>(start: SimulationStartPoint) {
 
     println!("Finished in {:.1}s", start_time.elapsed().as_secs_f32());
 
-    // let mut buckets: BTreeMap<u32, u32> = (0..=500).map(|x| (x, 0)).collect::<BTreeMap<_, _>>();
-    // for (run, _) in all_successful_runs.iter() {
-    //     // Bucket is the total time, measured is hundreds of hours;
-    //     let bucket = (run.slayer_data.time_spent().as_secs_f32() / (3600.0 * 100.0)) as u32;
-    //     *buckets.get_mut(&bucket.min(500)).unwrap() += 1;
-    // }
+    if args.print_density_function {
+        let mut buckets: BTreeMap<u32, u32> = (0..=500).map(|x| (x, 0)).collect::<BTreeMap<_, _>>();
+        for (run, _) in all_successful_runs.iter() {
+            // Bucket is the total time, measured is hundreds of hours;
+            let bucket = (run.slayer_data.time_spent().as_secs_f32() / (3600.0 * 100.0)) as u32;
+            *buckets.get_mut(&bucket.min(500)).unwrap() += 1;
+        }
 
-    // for (points, count) in buckets {
-    //     println!("[{}, {}],", points * 100, count);
-    // }
+        for (points, count) in buckets {
+            println!("[{}, {}],", points * 100, count);
+        }
+    }
 }
 
-pub fn run_superiors_simulation() {
+pub fn run_superiors_simulation(args: Args) {
     // Simulation is only valid after the slayer update
     assert!(WORLD_STATE == WorldState::Limp2026);
 
@@ -296,10 +319,10 @@ pub fn run_superiors_simulation() {
         storage_unlocked: false,
     };
 
-    run_simulation::<SuperiorsStrategy>(start);
+    run_simulation::<SuperiorsStrategy>(start, args);
 }
 
-pub fn run_slayer_start_simulation() {
+pub fn run_slayer_start_simulation(args: Args) {
     // Simulation is only valid after the slayer update
     assert!(WORLD_STATE == WorldState::Limp2026);
 
@@ -316,7 +339,7 @@ pub fn run_slayer_start_simulation() {
         storage_unlocked: false,
     };
 
-    run_simulation::<MinimizeSlayerLockStrategy>(start);
+    run_simulation::<MinimizeSlayerLockStrategy>(start, args);
 }
 
 #[derive(Clone)]
