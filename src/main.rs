@@ -491,7 +491,7 @@ impl Strategy for SuperiorsStrategy {
         player_state: &PlayerState,
     ) -> SimulationAction {
         use Monster::*;
-        if slayer_state.points < 200 {
+        if slayer_state.points < 400 {
             return MinimizeSlayerLockStrategy::default().select_action(slayer_state, player_state);
         }
         match (slayer_state.task_state, self.clone()) {
